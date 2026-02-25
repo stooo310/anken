@@ -300,6 +300,7 @@ tbody tr:hover td { background: #f7f9ff; }
 #loading-overlay { position:fixed; inset:0; background:rgba(15,23,42,.85); display:flex; align-items:center; justify-content:center; z-index:9998; }
 #loading-overlay.hidden { display:none; }
 .loading-spinner { color:#e2e8f0; font-size:16px; }
+.modal thead { position: static; }
 /* ===== MOBILE HAMBURGER ===== */
 .hamburger { display:none; position:fixed; top:12px; left:12px; z-index:60; width:40px; height:40px; border-radius:8px; background:var(--sidebar); color:#fff; border:none; font-size:20px; cursor:pointer; align-items:center; justify-content:center; box-shadow:0 2px 8px rgba(0,0,0,.3); }
 .sidebar-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:39; }
@@ -842,6 +843,21 @@ tbody tr:hover td { background: #f7f9ff; }
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
+<!-- 工事指示書モーダル -->
+<div class="modal-bg" id="shiji-modal">
+  <div class="modal" style="width:800px;">
+    <div class="modal-hd">
+      <div><div class="modal-title">📋 工事指示書</div><div class="modal-sub">自動入力項目を確認し、不足情報を入力してください</div></div>
+      <button class="close-btn" onclick="closeShijiModal()">×</button>
+    </div>
+    <div class="modal-body" id="shiji-body"></div>
+    <div class="modal-ft">
+      <button class="btn btn-ghost" onclick="closeShijiModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="generateShijiPdf()">📄 PDF出力</button>
+    </div>
+  </div>
+</div>
+
 <!-- 削除確認ダイアログ -->
 <div id="confirm-dialog" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:200;align-items:center;justify-content:center;">
   <div style="background:var(--bg2);border-radius:14px;padding:28px 32px;box-shadow:0 20px 60px rgba(0,0,0,.25);max-width:360px;width:90%;text-align:center;">
@@ -863,6 +879,7 @@ tbody tr:hover td { background: #f7f9ff; }
       <div class="detail-name" id="detail-name"></div>
     </div>
     <div style="display:flex;gap:6px;align-items:center;">
+      <button class="btn btn-ghost btn-sm" id="detail-shiji-btn" onclick="openShijiModal()" title="工事指示書">📋 指示書</button>
       <button class="btn btn-ghost btn-sm" id="detail-edit-btn" onclick="toggleDetailEditMode()">✏️ 編集</button>
       <button class="close-btn" onclick="closeDetail()">×</button>
     </div>
@@ -1942,11 +1959,14 @@ function openDetail(id) {
   var role = currentUser ? currentUser.role : 'member';
   if (role === 'admin' || role === 'manager') {
     document.getElementById('detail-edit-btn').style.display = '';
+    document.getElementById('detail-shiji-btn').style.display = '';
   } else if (role === 'member') {
     // memberはメモ・データURL編集のみ → 編集ボタンは表示するが制限付き
     document.getElementById('detail-edit-btn').style.display = '';
+    document.getElementById('detail-shiji-btn').style.display = 'none';
   } else {
     document.getElementById('detail-edit-btn').style.display = 'none';
+    document.getElementById('detail-shiji-btn').style.display = 'none';
   }
   document.getElementById('detail-mode-bar').style.display = 'none';
 }
@@ -5443,6 +5463,433 @@ function showToast(msg) {
 
 // ===== Init =====
 // 初期描画はinitApp()から呼ばれる
+// ============================================================
+// 工事指示書
+// ============================================================
+function openShijiModal() {
+  var a = ankenList.find(x => x.id === detailCurrentId);
+  if (!a) return;
+  // 代理店名を取得
+  var dairiName = '';
+  if (a.dairiNo) {
+    var dl = (settingsData.dairiList || []);
+    var found = dl.find(d => d.no === a.dairiNo);
+    dairiName = found ? found.name : a.dairiNo;
+  }
+  // 顧客情報を取得
+  var kk = kokyakuList.find(k => k.name === a.kokyaku) || {};
+
+  var html = `
+  <div class="form-section">
+    <div class="form-section-title">📌 基本情報（自動入力）</div>
+    <div class="form-grid">
+      <div class="form-group"><label>契約日</label><input type="date" id="sh-keiyakuDate" value="${(a.juchuDate||'').replace(/T.*$/,'').substring(0,10)}"></div>
+      <div class="form-group"><label>代理店名</label><input type="text" id="sh-dairiName" value="${dairiName}"></div>
+      <div class="form-group"><label>営業担当者</label><input type="text" id="sh-tanto" value="${a.tanto||''}"></div>
+    </div>
+  </div>
+  <div class="form-section">
+    <div class="form-section-title">🏢 顧客情報（自動入力）</div>
+    <div class="form-grid">
+      <div class="form-group"><label>屋号</label><input type="text" id="sh-kokyaku" value="${a.kokyaku||''}"></div>
+      <div class="form-group"><label>フリガナ</label><input type="text" id="sh-kokyakuKana" value="${a.kokyakuKana || kk.kana ||''}"></div>
+      <div class="form-group"><label>主権者名（代表者名）</label><input type="text" id="sh-rep" value="${a.rep || kk.rep ||''}"></div>
+      <div class="form-group"><label>フリガナ</label><input type="text" id="sh-repKana" value="${a.repKana || kk.repKana ||''}"></div>
+      <div class="form-group" style="grid-column:1/-1;"><label>設置先住所</label><input type="text" id="sh-addr" value="${a.kojiAddr||''}"></div>
+      <div class="form-group"><label>電話番号</label><input type="text" id="sh-tel" value="${a.tel || kk.tel ||''}"></div>
+      <div class="form-group"><label>業種</label><input type="text" id="sh-gyoshu" value="${a.gyoshu||''}"></div>
+    </div>
+  </div>
+  <div class="form-section">
+    <div class="form-section-title">⚡ 電気設備情報（自動入力）</div>
+    <div class="form-grid">
+      <div class="form-group"><label>設置kW（契約容量 → 提案容量）</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="text" id="sh-yoyoCapacity" value="${a.yoyoCapacity||''}" style="flex:1;" placeholder="契約容量">
+          <span style="font-weight:700;">→</span>
+          <input type="text" id="sh-teianKw" value="${a.teianKw||''}" style="flex:1;" placeholder="提案容量">
+        </div>
+      </div>
+      <div class="form-group"><label>電力会社</label><input type="text" id="sh-denryoku" value="${a.denryoku||''}"></div>
+      <div class="form-group"><label>電力営業所</label><input type="text" id="sh-eigyosho" value=""></div>
+      <div class="form-group"><label>計器番号</label><input type="text" id="sh-keikiNo" value="${a.keikiNo||''}"></div>
+      <div class="form-group"><label>動力主幹</label><input type="text" id="sh-doryoku" value=""></div>
+      <div class="form-group"><label>お客様番号</label><input type="text" id="sh-custNo" value=""></div>
+    </div>
+  </div>
+  <div class="form-section">
+    <div class="form-section-title">🔧 工事日程</div>
+    <div class="form-grid">
+      <div class="form-group"><label>工事日</label><input type="text" id="sh-kojiDate" value="" placeholder="7月 10日 14:00 ～"></div>
+      <div class="form-group"><label>工事日程希望</label><input type="text" id="sh-kojiKibou" value="" placeholder="水曜日以外希望 等"></div>
+    </div>
+  </div>
+  <div class="form-section">
+    <div class="form-section-title">📊 稼働状況</div>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;" id="sh-kado-table">
+        <thead><tr style="background:var(--bg3);position:static;">
+          <th style="padding:8px;border:1px solid var(--border);width:36px;">No</th>
+          <th style="padding:8px;border:1px solid var(--border);">機械名</th>
+          <th style="padding:8px;border:1px solid var(--border);width:50px;">台数</th>
+          <th style="padding:8px;border:1px solid var(--border);width:70px;">電流値</th>
+          <th style="padding:8px;border:1px solid var(--border);width:80px;">稼働時間</th>
+          <th style="padding:8px;border:1px solid var(--border);">稼働状況</th>
+          <th style="padding:8px;border:1px solid var(--border);width:36px;"></th>
+        </tr></thead>
+        <tbody id="sh-kado-body"></tbody>
+      </table>
+    </div>
+    <button class="btn btn-ghost btn-sm" style="margin-top:8px;" onclick="addShijiKadoRow()">＋ 行追加</button>
+  </div>
+  <div class="form-section">
+    <div class="form-section-title">✅ 確認事項</div>
+    <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr 1fr;">
+      <div class="form-group"><label>ウォルボックス</label>
+        <select id="sh-walbox"><option value="無し" selected>無し</option><option value="有り">有り</option></select></div>
+      <div class="form-group"><label>貼り紙</label>
+        <select id="sh-harigami"><option value="無し" selected>無し</option><option value="有り">有り</option></select></div>
+      <div class="form-group"><label>無人工事</label>
+        <select id="sh-mujin"><option value="無し" selected>無し</option><option value="有り">有り</option></select></div>
+      <div class="form-group"><label>AC制御</label>
+        <select id="sh-ac" onchange="toggleDcsSection()"><option value="無し" selected>無し</option><option value="有り">有り</option></select></div>
+    </div>
+    <div class="form-grid">
+      <div class="form-group"><label>立会担当者</label><input type="text" id="sh-tachiai" value="上記主権者"></div>
+    </div>
+  </div>
+  <!-- DCS取付情報（AC制御=有り時のみ表示） -->
+  <div class="form-section" id="sh-dcs-section" style="display:none;">
+    <div class="form-section-title">🔌 DCS取付情報</div>
+    <div class="form-grid" style="grid-template-columns:1fr 1fr;">
+      <div class="form-group"><label>AC制御 台数</label>
+        <input type="number" id="sh-ac-count" value="1" min="1" max="10" onchange="renderDcsUnits()"></div>
+    </div>
+    <div id="sh-dcs-units"></div>
+  </div>
+  <div class="form-section">
+    <div class="form-section-title">📝 備考</div>
+    <div class="form-group"><textarea id="sh-biko" rows="4">${a.memo||''}</textarea></div>
+  </div>`;
+  document.getElementById('shiji-body').innerHTML = html;
+  // 初期3行追加
+  _shijiKadoCount = 0;
+  document.getElementById('sh-kado-body').innerHTML = '';
+  for (var i = 0; i < 3; i++) addShijiKadoRow();
+  document.getElementById('shiji-modal').classList.add('open');
+}
+
+function closeShijiModal() {
+  document.getElementById('shiji-modal').classList.remove('open');
+}
+
+var _shijiKadoCount = 0;
+function addShijiKadoRow() {
+  _shijiKadoCount++;
+  var tbody = document.getElementById('sh-kado-body');
+  var tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td style="padding:4px;border:1px solid var(--border);text-align:center;font-size:12px;">${_shijiKadoCount}</td>
+    <td style="padding:4px;border:1px solid var(--border);"><input type="text" style="width:100%;border:none;outline:none;font-size:12px;padding:4px;" class="sh-k-name"></td>
+    <td style="padding:4px;border:1px solid var(--border);"><input type="number" style="width:100%;border:none;outline:none;font-size:12px;padding:4px;text-align:center;" class="sh-k-qty" value="1"></td>
+    <td style="padding:4px;border:1px solid var(--border);"><input type="text" style="width:100%;border:none;outline:none;font-size:12px;padding:4px;" class="sh-k-amp" placeholder="25A"></td>
+    <td style="padding:4px;border:1px solid var(--border);"><input type="text" style="width:100%;border:none;outline:none;font-size:12px;padding:4px;" class="sh-k-time" placeholder="常時"></td>
+    <td style="padding:4px;border:1px solid var(--border);"><input type="text" style="width:100%;border:none;outline:none;font-size:12px;padding:4px;" class="sh-k-note" placeholder="同時稼働無し等"></td>
+    <td style="padding:4px;border:1px solid var(--border);text-align:center;"><button style="border:none;background:none;cursor:pointer;color:var(--danger);font-size:14px;" onclick="this.closest('tr').remove()">×</button></td>`;
+  tbody.appendChild(tr);
+}
+
+function generateShijiPdf() {
+  var d = _getShijiFormData();
+  var rows = _getShijiKadoRows();
+
+  var kDateDisp = '';
+  if (d.keiyakuDate) {
+    var p = d.keiyakuDate.split('-');
+    kDateDisp = p[0] + '年 ' + parseInt(p[1]) + '月 ' + parseInt(p[2]) + '日';
+  }
+  var kwDisp = '';
+  if (d.yoyoCapacity && d.teianKw) kwDisp = d.yoyoCapacity + ' → ' + d.teianKw;
+  else kwDisp = d.yoyoCapacity || d.teianKw || '';
+
+  var maxKado = Math.max(rows.length, 6);
+  if (maxKado > 13) maxKado = 13;
+  var kadoHtml = '';
+  for (var i = 0; i < maxKado; i++) {
+    var r = rows[i] || {};
+    kadoHtml += '<tr style="height:20px;">'
+      +'<td class="c" colspan="1">'+(i+1)+'</td>'
+      +'<td colspan="3">'+(r.name||'')+'</td>'
+      +'<td class="c" colspan="1">'+(r.qty||'')+'</td>'
+      +'<td class="c" colspan="1">'+(r.amp||'')+'</td>'
+      +'<td colspan="2">'+(r.time||'')+'</td>'
+      +'<td colspan="4">'+(r.note||'')+'</td></tr>';
+  }
+
+  var bikoHtml = (d.biko||'').replace(/\n/g, '<br>');
+  var kojiKibouHtml = (d.kojiKibou||'').replace(/\n/g, '<br>');
+
+  // DCS取付情報
+  var dcsUnits = (d.ac === '有り') ? _getDcsData() : [];
+  var dcsHtml = '';
+  if (dcsUnits.length > 0) {
+    dcsHtml = '<table style="margin-top:4px;"><colgroup><col><col><col><col><col><col><col><col><col><col><col><col></colgroup>';
+    dcsHtml += '<tr><td class="lb" colspan="12" style="font-size:10px;">DCS取付情報</td></tr>';
+    for (var di = 0; di < dcsUnits.length; di++) {
+      var u = dcsUnits[di];
+      dcsHtml += '<tr><td class="lb" colspan="3">（'+(di+1)+'台目）メーカー</td><td colspan="3">'+u.maker+'</td>'
+        +'<td class="lb" colspan="2">圧縮機出力</td><td class="c" colspan="2">'+u.outputKw+(u.outputKw?' kW':'')+'</td><td class="c" colspan="2">'+u.outputA+(u.outputA?' A':'')+'</td></tr>';
+      dcsHtml += '<tr><td class="lb" colspan="3">型番/室外機コネクタ</td><td colspan="9">'+u.model+'</td></tr>';
+      dcsHtml += '<tr><td class="lb" colspan="3">室内機の場所</td><td colspan="3">'+u.indoor+'</td>'
+        +'<td class="lb" colspan="3">室外機の場所</td><td colspan="3">'+u.outdoor+'</td></tr>';
+    }
+    dcsHtml += '</table>';
+  }
+
+  var html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+<title>工事指示書</title>
+<style>
+  @page { size:A4 portrait; margin:14mm 18mm 10mm 18mm; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Noto Sans JP',sans-serif; font-size:10px; color:#000; width:100%; }
+  table { border-collapse:collapse; width:100%; table-layout:fixed; }
+  col { width:8.33%; }
+  td, th { border:1px solid #444; padding:3px 5px; vertical-align:middle; font-size:10px; }
+  .lb { background:#dcedc8; font-weight:700; font-size:9px; text-align:center; }
+  .c { text-align:center; }
+  .b { font-weight:700; }
+  .big { font-size:12px; font-weight:700; }
+  .sm { font-size:8px; }
+  .vt { vertical-align:top; }
+  h1 { text-align:center; font-size:20px; letter-spacing:12px; margin:8px 0 12px; padding:10px 0; border:2px solid #444; }
+  @media print {
+    body { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    @page { margin:14mm 18mm 10mm 18mm; }
+  }
+</style></head><body>
+<h1>工　事　指　示　書</h1>
+
+<!-- 全テーブル共通: 12列 (各8.33%) -->
+<table>
+  <colgroup><col><col><col><col><col><col><col><col><col><col><col><col></colgroup>
+  <!-- 契約日 / 工事日 -->
+  <tr style="height:22px;">
+    <td class="lb" colspan="2">契約日</td>
+    <td class="c b" colspan="4">${kDateDisp}</td>
+    <td class="lb" colspan="2">工事日</td>
+    <td class="c b" colspan="4">${d.kojiDate||''}</td>
+  </tr>
+  <!-- フリガナ -->
+  <tr>
+    <td class="lb sm" colspan="2">フリガナ</td>
+    <td class="sm" colspan="4">${d.kokyakuKana||''}</td>
+    <td class="lb sm" colspan="2">フリガナ</td>
+    <td class="sm" colspan="4">${d.repKana||''}</td>
+  </tr>
+  <!-- 屋号 / 主権者名 -->
+  <tr style="height:24px;">
+    <td class="lb" colspan="2">屋号</td>
+    <td class="big" colspan="4">${d.kokyaku||''}</td>
+    <td class="lb" colspan="2">主権者名</td>
+    <td class="b" colspan="4">${d.rep||''}</td>
+  </tr>
+  <!-- 設置住所 / 電話番号 -->
+  <tr>
+    <td class="lb" colspan="2">設置住所</td>
+    <td colspan="4">${d.addr||''}</td>
+    <td class="lb" colspan="2">電話番号</td>
+    <td colspan="4">${d.tel||''}</td>
+  </tr>
+  <!-- 設置kW / 業種 -->
+  <tr>
+    <td class="lb" colspan="2">設置ｋｗ</td>
+    <td class="b" colspan="4">${kwDisp}</td>
+    <td class="lb" colspan="2">業種</td>
+    <td colspan="4">${d.gyoshu||''}</td>
+  </tr>
+  <!-- 電力会社 / 動力主幹 / 電力営業所 -->
+  <tr>
+    <td class="lb" colspan="2">電力会社</td>
+    <td colspan="2">${d.denryoku||''}</td>
+    <td class="lb" colspan="2">動力主幹</td>
+    <td colspan="2">${d.doryoku||''}</td>
+    <td class="lb" colspan="2">電力営業所</td>
+    <td colspan="2">${d.eigyosho||''}</td>
+  </tr>
+  <!-- 計器番号 / お客様番号 -->
+  <tr>
+    <td class="lb" colspan="2">計器番号</td>
+    <td colspan="4">${d.keikiNo||''}</td>
+    <td class="lb" colspan="2">お客様番号</td>
+    <td colspan="4">${d.custNo||''}</td>
+  </tr>
+</table>
+
+<!-- 稼働状況 (同じ12列グリッド) -->
+<table style="margin-top:4px;">
+  <colgroup><col><col><col><col><col><col><col><col><col><col><col><col></colgroup>
+  <thead><tr>
+    <th class="lb" colspan="1">No</th>
+    <th class="lb" colspan="3">機械名</th>
+    <th class="lb" colspan="1">台数</th>
+    <th class="lb" colspan="1">電流値</th>
+    <th class="lb" colspan="2">稼働時間</th>
+    <th class="lb" colspan="4">稼働状況</th>
+  </tr></thead>
+  <tbody>${kadoHtml}</tbody>
+</table>
+
+<!-- 備考 (12列: ラベル2col 値4col ラベル2col 値4col) -->
+<table style="margin-top:4px;">
+  <colgroup><col><col><col><col><col><col><col><col><col><col><col><col></colgroup>
+  <tr>
+    <td class="lb vt" colspan="2" style="height:60px;">備考</td>
+    <td class="vt" colspan="4" style="white-space:pre-wrap;font-size:9px;">${bikoHtml||''}</td>
+    <td class="lb vt" colspan="2">工事日程希望</td>
+    <td class="vt" colspan="4" style="white-space:pre-wrap;font-size:9px;">${kojiKibouHtml||''}</td>
+  </tr>
+</table>
+
+${dcsHtml}
+
+<!-- 下部 (12列: 1行にまとめ) -->
+<table style="margin-top:2px;">
+  <colgroup><col><col><col><col><col><col><col><col><col><col><col><col></colgroup>
+  <tr>
+    <td class="lb" colspan="2">代理店名</td>
+    <td colspan="2">${d.dairiName||''}</td>
+    <td class="lb">営業担当者</td>
+    <td colspan="2">${d.tanto||''}</td>
+    <td class="lb">ウォルボックス</td>
+    <td class="c">${d.walbox}</td>
+    <td class="lb">貼り紙</td>
+    <td class="c">${d.harigami}</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td class="lb" colspan="2">立会担当者</td>
+    <td colspan="3" class="c">${d.tachiai||''}</td>
+    <td class="lb" colspan="2">AC制御</td>
+    <td class="c">${d.ac}</td>
+    <td class="lb">無人工事</td>
+    <td class="c" colspan="3">${d.mujin}</td>
+  </tr>
+</table>
+
+</body></html>`;
+
+  var win = window.open('', '_blank');
+  if (!win) {
+    alert('ポップアップがブロックされました。\nアドレスバー右端のブロックアイコンをクリックして許可してください。');
+    return;
+  }
+  win.document.write(html);
+  win.document.close();
+  // タイトル設定（ヘッダーに表示される文字を制御）
+  win.document.title = '工事指示書';
+  setTimeout(function() {
+    win.print();
+  }, 1500);
+  closeShijiModal();
+  showToast('📋 詳細設定→「ヘッダーとフッター」のチェックを外すとabout:blankが消えます');
+}
+
+// DCS取付情報の表示切替
+function toggleDcsSection() {
+  var ac = document.getElementById('sh-ac').value;
+  var sec = document.getElementById('sh-dcs-section');
+  if (ac === '有り') {
+    sec.style.display = '';
+    renderDcsUnits();
+  } else {
+    sec.style.display = 'none';
+  }
+}
+
+var AC_MAKERS = ['ダイキン','三菱電機','三菱重工','パナソニック','東芝','日立','松下電器','シャープ','ナショナル','三洋'];
+
+function renderDcsUnits() {
+  var count = parseInt(document.getElementById('sh-ac-count').value) || 1;
+  var container = document.getElementById('sh-dcs-units');
+  var makerOpts = '<option value="">(選択)</option>' + AC_MAKERS.map(function(m) { return '<option value="'+m+'">'+m+'</option>'; }).join('');
+  var html = '';
+  for (var i = 0; i < count; i++) {
+    html += '<div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;background:var(--bg);">'
+      + '<div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:8px;">DCS取付情報（'+(i+1)+'台目）</div>'
+      + '<div class="form-grid">'
+      + '<div class="form-group"><label>空調機メーカー名</label><select class="dcs-maker">'+makerOpts+'</select></div>'
+      + '<div class="form-group"><label>圧縮機 出力 (kW)</label><input type="text" class="dcs-output-kw" placeholder="kW"></div>'
+      + '<div class="form-group"><label>圧縮機 出力 (A)</label><input type="text" class="dcs-output-a" placeholder="A"></div>'
+      + '<div class="form-group"><label>型番 / 室外機コネクタ</label><input type="text" class="dcs-model" placeholder="型番"></div>'
+      + '<div class="form-group"><label>室内機の場所</label><input type="text" class="dcs-indoor" placeholder="1F奥の部屋 等"></div>'
+      + '<div class="form-group"><label>室外機の場所</label><input type="text" class="dcs-outdoor" placeholder="正面入口向かって右側 等"></div>'
+      + '</div></div>';
+  }
+  container.innerHTML = html;
+}
+
+function _getDcsData() {
+  var units = [];
+  var makers = document.querySelectorAll('.dcs-maker');
+  makers.forEach(function(el, i) {
+    var parent = el.closest('div[style*="border"]');
+    if (!parent) return;
+    units.push({
+      maker: el.value,
+      outputKw: (parent.querySelector('.dcs-output-kw')||{}).value || '',
+      outputA: (parent.querySelector('.dcs-output-a')||{}).value || '',
+      model: (parent.querySelector('.dcs-model')||{}).value || '',
+      indoor: (parent.querySelector('.dcs-indoor')||{}).value || '',
+      outdoor: (parent.querySelector('.dcs-outdoor')||{}).value || ''
+    });
+  });
+  return units;
+}
+
+// フォームデータ取得（共通）
+function _getShijiFormData() {
+  return {
+    keiyakuDate: document.getElementById('sh-keiyakuDate').value,
+    dairiName: document.getElementById('sh-dairiName').value,
+    tanto: document.getElementById('sh-tanto').value,
+    kokyaku: document.getElementById('sh-kokyaku').value,
+    kokyakuKana: document.getElementById('sh-kokyakuKana').value,
+    rep: document.getElementById('sh-rep').value,
+    repKana: document.getElementById('sh-repKana').value,
+    addr: document.getElementById('sh-addr').value,
+    tel: document.getElementById('sh-tel').value,
+    gyoshu: document.getElementById('sh-gyoshu').value,
+    yoyoCapacity: document.getElementById('sh-yoyoCapacity').value,
+    teianKw: document.getElementById('sh-teianKw').value,
+    denryoku: document.getElementById('sh-denryoku').value,
+    eigyosho: document.getElementById('sh-eigyosho').value,
+    keikiNo: document.getElementById('sh-keikiNo').value,
+    doryoku: document.getElementById('sh-doryoku').value,
+    custNo: document.getElementById('sh-custNo').value,
+    kojiDate: document.getElementById('sh-kojiDate').value,
+    kojiKibou: document.getElementById('sh-kojiKibou').value,
+    walbox: document.getElementById('sh-walbox').value,
+    harigami: document.getElementById('sh-harigami').value,
+    mujin: document.getElementById('sh-mujin').value,
+    ac: document.getElementById('sh-ac').value,
+    tachiai: document.getElementById('sh-tachiai').value,
+    biko: document.getElementById('sh-biko').value
+  };
+}
+function _getShijiKadoRows() {
+  var rows = [];
+  document.querySelectorAll('#sh-kado-body tr').forEach(function(tr, i) {
+    var name = tr.querySelector('.sh-k-name').value;
+    var qty = tr.querySelector('.sh-k-qty').value;
+    var amp = tr.querySelector('.sh-k-amp').value;
+    var time = tr.querySelector('.sh-k-time').value;
+    var note = tr.querySelector('.sh-k-note') ? tr.querySelector('.sh-k-note').value : '';
+    if (name) rows.push({ no: i+1, name: name, qty: qty, amp: amp, time: time, note: note });
+  });
+  return rows;
+}
+
 </script>
 </div>
 
