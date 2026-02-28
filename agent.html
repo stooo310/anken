@@ -1213,7 +1213,7 @@ function renderMeisai() {
       var dcM = getDairiConfig(a.dairiNo || a.dairiNo2);
       var shinpanCalc = calcShinpan(a, dcM);
       var keisanCalc = priceVal > 0 ? Math.round(priceVal - zaikoVal - shinpanCalc - kotsuVal) : 0;
-      html += '<tr>';
+      html += '<tr style="cursor:pointer;" onclick="showPage(\'page-anken\');openDetail('+a.id+')">';
       html += '<td>'+(a.juchuNo||'-')+'</td>';
       html += '<td>'+fmtDate(a.juchuDate)+'</td>';
       html += '<td><span class="badge '+statusColor(a.status)+'">'+(a.status||'-')+'</span></td>';
@@ -1279,7 +1279,7 @@ function renderMeisai() {
       var mFee = calcMonthlyFee(a, dcMA);
       var mRate = dcMA.monthlyFeeRate || 0;
       totalMonthlyFeeTable += mFee;
-      html += '<tr>';
+      html += '<tr style="cursor:pointer;" onclick="showPage(\'page-anken\');openDetail('+a.id+')">';
       html += '<td>'+(a.juchuNo||'-')+'</td>';
       html += '<td>'+fmtDate(a.juchuDate)+'</td>';
       html += '<td><span class="badge '+statusColor(a.status)+'">'+(a.status||'-')+'</span></td>';
