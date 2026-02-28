@@ -262,7 +262,7 @@ tbody tr:hover td { background: #f0f5ff; }
   <nav class="nav">
     <div class="nav-section">メニュー</div>
     <div class="nav-item active" onclick="showPage('anken')"><span class="nav-icon">📋</span>案件一覧</div>
-    <div class="nav-item" onclick="showPage('meisai')"><span class="nav-icon">💰</span>手数料明細</div>
+    <div class="nav-item" onclick="showPage('meisai')"><span class="nav-icon">💰</span>支払手数料</div>
   </nav>
   <div class="sidebar-footer">
     <div class="agent-name" id="agent-name-disp"></div>
@@ -336,7 +336,7 @@ tbody tr:hover td { background: #f0f5ff; }
   <!-- ===== 手数料明細ページ ===== -->
   <div id="page-meisai" style="display:none;">
     <div class="page-header">
-      <div class="page-title">💰 手数料<span>明細</span></div>
+      <div class="page-title">💰 支払手数料<span>明細</span></div>
       <div class="header-actions">
         <input type="month" id="meisai-month" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;background:var(--bg2);color:var(--text);" onchange="renderMeisai()">
         <button class="btn btn-ghost btn-sm" onclick="printMeisai()">🖨 印刷</button>
@@ -684,12 +684,17 @@ function openDetail(id) {
 
   var html = '';
 
+  // 指示書ボタン（社内と同じ：上部に配置）
+  html += '<div style="padding:10px 22px;display:flex;gap:8px;">';
+  html += '<button class="btn" style="background:var(--bg3);color:var(--text);font-size:12px;padding:6px 14px;" onclick="openShijiModal('+a.id+')">📋 指示書</button>';
+  html += '</div>';
+
   // 基本情報
   html += '<div class="detail-section"><div class="detail-section-title">📋 基本情報</div><div class="detail-grid">';
   html += detailItem('種別', typePill(a.type));
   html += detailItem('ステータス', '<span class="badge '+statusColor(a.status)+'">'+(a.status||'-')+'</span>');
   html += detailItem('受注日', fmtDate(a.juchuDate));
-  html += detailItem('月', a.tsuki || '-');
+  html += detailItem('月', fmtDate(a.tsuki));
   html += detailItem('顧客名', a.kokyaku || '-', true);
   html += detailItem('代表者', a.rep || '-');
   html += detailItem('電話', a.tel || '-');
@@ -747,11 +752,6 @@ function openDetail(id) {
     if (a.status3) html += detailItem('工事写真フォルダ', '<a href="'+a.status3+'" target="_blank" style="color:var(--accent);font-size:12px;">🔗 開く</a>');
     html += '</div></div>';
   }
-
-  // 工事指示書ボタン
-  html += '<div style="padding:16px 22px;border-top:1px solid var(--border);">';
-  html += '<button class="btn btn-primary" style="width:100%;" onclick="openShijiModal('+a.id+')">📋 工事指示書PDF出力</button>';
-  html += '</div>';
 
   document.getElementById('detail-body').innerHTML = html;
   document.getElementById('detail-panel').classList.add('open');
@@ -994,57 +994,76 @@ function renderMeisai() {
   var ymParts = ym.split('-');
   var dispMonth = ymParts[0]+'年'+parseInt(ymParts[1])+'月';
 
-  // 該当月の案件を抽出
+  // 入金月基準で抽出
   var monthAnken = ankenList.filter(function(a) {
-    // 月フィールド、受注日、完工日のいずれかがこの月
-    return (a.tsuki||'').startsWith(ym) ||
-           (a.juchuDate||'').startsWith(ym);
+    return (a.nyukinDate||'').substring(0,7) === ym;
   });
 
   var html = '';
 
   // サマリー
   var totalFee = monthAnken.reduce(function(sum, a) { return sum + calcAgentFee(a); }, 0);
-  var totalOroshi = monthAnken.reduce(function(sum, a) { return sum + (getOroshiValue(a)||0); }, 0);
+  var totalKeisan = monthAnken.reduce(function(sum, a) { return sum + (parseFloat(a.keisan)||0); }, 0);
 
   html += '<div class="meisai-card">';
   html += '<div class="meisai-summary">';
   html += '<div class="meisai-summary-item"><div class="meisai-summary-label">'+dispMonth+' 手数料合計</div><div class="meisai-summary-value">¥'+totalFee.toLocaleString()+'</div></div>';
   html += '<div class="meisai-summary-item"><div class="meisai-summary-label">対象案件数</div><div class="meisai-summary-value" style="color:var(--text);">'+monthAnken.length+'<span style="font-size:12px;color:var(--text3);margin-left:4px;">件</span></div></div>';
-  html += '<div class="meisai-summary-item"><div class="meisai-summary-label">卸値合計</div><div class="meisai-summary-value" style="color:var(--accent2);">¥'+totalOroshi.toLocaleString()+'</div></div>';
+  html += '<div class="meisai-summary-item"><div class="meisai-summary-label">計算対象合計</div><div class="meisai-summary-value" style="color:var(--accent2);">¥'+totalKeisan.toLocaleString()+'</div></div>';
+  html += '<div class="meisai-summary-item"><div class="meisai-summary-label">支払予定</div><div class="meisai-summary-value" style="color:var(--purple);font-size:14px;">翌月末</div></div>';
   html += '</div>';
 
   // 明細テーブル
   html += '<div style="overflow-x:auto;">';
   html += '<table class="meisai-table">';
   html += '<thead><tr>';
-  html += '<th>No.</th><th>受注日</th><th>顧客名</th><th>種別</th><th>ステータス</th><th>契約種別</th><th>提案内容</th><th>卸値（税込）</th><th>手数料（税込）</th>';
+  html += '<th>受注番号</th><th>受注日</th><th>ステータス</th><th>提案内容</th><th>社名</th><th>住所</th>';
+  html += '<th>工事日③</th><th>契約種別</th><th>金額(税込)</th><th>物件価格(税込)</th>';
+  html += '<th>材工</th><th>リプその他</th><th>交通費</th><th>計算対象</th><th>手数料</th><th>受注日</th><th>入金日</th>';
   html += '</tr></thead><tbody>';
 
   if (monthAnken.length === 0) {
-    html += '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--text3);">該当月のデータはありません</td></tr>';
+    html += '<tr><td colspan="17" style="text-align:center;padding:24px;color:var(--text3);">該当月の入金データはありません</td></tr>';
   } else {
-    monthAnken.forEach(function(a, i) {
-      var oroshi = getOroshiValue(a) || 0;
+    monthAnken.forEach(function(a) {
       var fee = calcAgentFee(a);
+      var zaikoVal = parseFloat(a.zaiko) || ((parseFloat(a.zairyoHi)||0) + (parseFloat(a.kojiHi)||0)) || 0;
       html += '<tr>';
-      html += '<td style="text-align:center;">'+(i+1)+'</td>';
+      html += '<td style="font-size:11px;white-space:nowrap;">'+(a.juchuNo||'-')+'</td>';
       html += '<td>'+fmtDate(a.juchuDate)+'</td>';
-      html += '<td style="font-weight:600;">'+(a.kokyaku||'-')+'</td>';
-      html += '<td>'+typePill(a.type)+'</td>';
       html += '<td><span class="badge '+statusColor(a.status)+'">'+(a.status||'-')+'</span></td>';
-      html += '<td>'+(a.keiyakuType||'-')+'</td>';
       html += '<td>'+(a.teianContent||a.content||'-')+'</td>';
-      html += '<td class="td-amount">'+fmtYen(oroshi)+'</td>';
-      html += '<td class="td-amount" style="color:var(--accent);">'+fmtYen(fee)+'</td>';
+      html += '<td style="font-weight:600;">'+(a.kokyaku||'-')+'</td>';
+      html += '<td style="font-size:11px;">'+(a.addr1||'-')+'</td>';
+      html += '<td>'+fmtDate(a.shunkoDate)+'</td>';
+      html += '<td>'+(a.keiyakuType||'-')+'</td>';
+      html += '<td class="td-amount">'+fmtYen(a.price)+'</td>';
+      html += '<td class="td-amount">'+fmtYen(a.price)+'</td>';
+      html += '<td class="td-amount">'+fmtYen(zaikoVal||'')+'</td>';
+      html += '<td class="td-amount">'+fmtYen(a.ripuSonota)+'</td>';
+      html += '<td class="td-amount">'+fmtYen(a.ripuKotsu)+'</td>';
+      html += '<td class="td-amount">'+fmtYen(a.keisan)+'</td>';
+      html += '<td class="td-amount" style="color:var(--accent);font-weight:700;">'+fmtYen(fee)+'</td>';
+      html += '<td>'+fmtDate(a.juchuDate)+'</td>';
+      html += '<td>'+fmtDate(a.nyukinDate)+'</td>';
       html += '</tr>';
     });
 
     // 合計行
+    var totalPrice = monthAnken.reduce(function(s,a){return s+(parseFloat(a.price)||0);},0);
+    var totalZaiko = monthAnken.reduce(function(s,a){return s+((parseFloat(a.zaiko)||0)||((parseFloat(a.zairyoHi)||0)+(parseFloat(a.kojiHi)||0)));},0);
+    var totalSonota = monthAnken.reduce(function(s,a){return s+(parseFloat(a.ripuSonota)||0);},0);
+    var totalKotsu = monthAnken.reduce(function(s,a){return s+(parseFloat(a.ripuKotsu)||0);},0);
     html += '<tr class="total-row">';
-    html += '<td colspan="7" style="text-align:right;padding-right:20px;">合計</td>';
-    html += '<td>¥'+totalOroshi.toLocaleString()+'</td>';
+    html += '<td colspan="8" style="text-align:right;padding-right:20px;">合計</td>';
+    html += '<td>¥'+totalPrice.toLocaleString()+'</td>';
+    html += '<td>¥'+totalPrice.toLocaleString()+'</td>';
+    html += '<td>¥'+totalZaiko.toLocaleString()+'</td>';
+    html += '<td>¥'+totalSonota.toLocaleString()+'</td>';
+    html += '<td>¥'+totalKotsu.toLocaleString()+'</td>';
+    html += '<td>¥'+totalKeisan.toLocaleString()+'</td>';
     html += '<td>¥'+totalFee.toLocaleString()+'</td>';
+    html += '<td></td><td></td>';
     html += '</tr>';
   }
 
@@ -1071,7 +1090,7 @@ function renderMonthlyChart(currentYm) {
 
   var data = months.map(function(ym) {
     var fee = ankenList.filter(function(a) {
-      return (a.tsuki||'').startsWith(ym) || (a.juchuDate||'').startsWith(ym);
+      return (a.nyukinDate||'').substring(0,7) === ym;
     }).reduce(function(sum, a) { return sum + calcAgentFee(a); }, 0);
     return { ym: ym, fee: fee };
   });
