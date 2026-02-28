@@ -153,8 +153,13 @@ tbody tr:hover td { background: #f0f5ff; }
 .meisai-header { padding: 16px 20px; background: var(--bg3); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
 .meisai-title { font-size: 14px; font-weight: 700; color: var(--text); }
 .meisai-table { width: 100%; border-collapse: collapse; }
-.meisai-table th { background: var(--bg3); padding: 10px 14px; font-size: 10px; color: var(--text3); font-weight: 700; letter-spacing: .5px; text-transform: uppercase; border-bottom: 1px solid var(--border); text-align: left; }
-.meisai-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.meisai-table th { background: var(--bg3); padding: 8px 6px; font-size: 9px; color: var(--text3); font-weight: 700; letter-spacing: .5px; text-transform: uppercase; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+.meisai-table td { padding: 6px; border-bottom: 1px solid var(--border); font-size: 10px; white-space: nowrap; }
+@media print {
+  .meisai-table { font-size: 8px; }
+  .meisai-table th { font-size: 7px; padding: 4px 3px; }
+  .meisai-table td { font-size: 8px; padding: 4px 3px; white-space: normal; word-break: break-all; }
+}
 .meisai-table tr:last-child td { border-bottom: none; }
 .meisai-table .total-row { background: #f0f5ff; font-weight: 700; }
 .meisai-table .total-row td { color: var(--accent); font-size: 14px; }
@@ -180,7 +185,7 @@ tbody tr:hover td { background: #f0f5ff; }
 .login-card .login-logo-sub { font-size: 11px; color: #64748b; letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; }
 
 /* ===== TOAST ===== */
-.modal-bg.open { display: flex; }
+.modal-bg.open { display: flex !important; }
 .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(20px); background: #1e293b; color: #fff; padding: 12px 24px; border-radius: 10px; font-size: 13px; font-weight: 500; z-index: 999; opacity: 0; transition: all .3s; box-shadow: 0 8px 24px rgba(0,0,0,.25); }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
@@ -233,7 +238,7 @@ tbody tr:hover td { background: #f0f5ff; }
     <h1>代理店ログイン</h1>
     <p class="sub">代理店番号とパスワードでログインしてください</p>
     <label>代理店番号</label>
-    <input type="text" id="login-agent-no" placeholder="D0051" autofocus>
+    <input type="text" id="login-agent-no" placeholder="ユーザー名" autofocus>
     <label>パスワード</label>
     <input type="password" id="login-pass" placeholder="パスワード" onkeydown="if(event.key==='Enter')doAgentLogin()">
     <button class="btn-login" onclick="doAgentLogin()">ログイン</button>
@@ -342,7 +347,7 @@ tbody tr:hover td { background: #f0f5ff; }
         <button class="btn btn-ghost btn-sm" onclick="printMeisai()">🖨 印刷</button>
       </div>
     </div>
-
+    <div id="meisai-dairi-filter"></div>
     <div id="meisai-content"></div>
   </div>
 
@@ -358,7 +363,7 @@ tbody tr:hover td { background: #f0f5ff; }
 </div>
 
 <!-- ===== 工事指示書モーダル ===== -->
-<div class="modal-bg" id="shiji-modal" style="display:none;position:fixed;inset:0;background:rgba(15,25,50,.5);z-index:100;align-items:center;justify-content:center;backdrop-filter:blur(3px);">
+<div class="modal-bg" id="shiji-modal" style="position:fixed;inset:0;background:rgba(15,25,50,.5);z-index:100;align-items:center;justify-content:center;backdrop-filter:blur(3px);display:none;">
   <div style="background:var(--bg2);border-radius:14px;width:700px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);">
     <div style="padding:22px 26px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:var(--bg2);z-index:1;border-radius:14px 14px 0 0;">
       <div><div style="font-size:17px;font-weight:700;">📋 工事指示書</div><div style="font-size:12px;color:var(--text3);margin-top:2px;">入力内容を確認してPDF出力してください</div></div>
@@ -411,14 +416,14 @@ async function apiCall(action, params) {
 
 // ===== ログイン =====
 async function doAgentLogin() {
-  var agentNo = document.getElementById('login-agent-no').value.trim().toUpperCase();
+  var agentNo = document.getElementById('login-agent-no').value.trim();
   var pass = document.getElementById('login-pass').value.trim();
   var errEl = document.getElementById('login-err');
   errEl.style.display = 'none';
 
   if (!agentNo || !pass) {
     errEl.textContent = '代理店番号とパスワードを入力してください';
-    errEl.style.display = '';
+    errEl.style.display = 'block';
     return;
   }
 
@@ -426,22 +431,26 @@ async function doAgentLogin() {
     var res = await apiCall('login', { username: agentNo, password: pass });
     if (!res.ok) {
       errEl.textContent = res.error || 'ログインに失敗しました';
-      errEl.style.display = '';
+      errEl.style.display = 'block';
       return;
     }
     // dairiロールか確認
-    if (res.user.role !== 'dairi') {
+    if (res.user.role !== 'dairi' && res.user.role !== 'dairiAdmin') {
       errEl.textContent = 'この画面は代理店専用です';
-      errEl.style.display = '';
+      errEl.style.display = 'block';
       return;
     }
     authToken = res.token;
-    agentInfo = { no: res.user.dairiNo || agentNo, name: res.user.tantoName || agentNo };
+    agentInfo = {
+      no: res.user.dairiNo || agentNo,
+      name: res.user.tantoName || agentNo,
+      role: res.user.role
+    };
     saveSession();
     await initAgentApp();
   } catch (e) {
     errEl.textContent = '通信エラー: ' + e.message;
-    errEl.style.display = '';
+    errEl.style.display = 'block';
   }
 }
 
@@ -468,15 +477,25 @@ async function initAgentApp() {
     var settingsRes = await apiCall('getSettings');
     if (settingsRes.ok && settingsRes.data) {
       settingsData = settingsRes.data;
-      // 代理店名をdairiListから取得
       var dairiList = settingsData.dairiList || [];
-      var found = dairiList.find(function(d) { return d.no === agentInfo.no; });
-      if (found) agentInfo.name = found.name;
+      if (agentInfo.role === 'dairiAdmin') {
+        agentInfo.name = '管理者';
+        agentInfo.no = 'ADMIN';
+      } else {
+        var found = dairiList.find(function(d) { return d.no === agentInfo.no; });
+        if (found) agentInfo.name = found.name;
+      }
     }
 
     // UI更新
     document.getElementById('agent-name-disp').textContent = agentInfo.name;
     document.getElementById('agent-no-disp').textContent = agentInfo.no;
+
+    // 管理者の場合、代理店フィルターを表示
+    if (agentInfo.role === 'dairiAdmin') {
+      renderDairiFilter();
+      renderMeisaiDairiFilter();
+    }
 
     renderStatusChips();
     renderAnkenTable();
@@ -570,6 +589,17 @@ function setStatusFilter(s) {
 }
 
 // ===== 案件テーブル =====
+var _ankenSortKey = 'juchuDate';
+var _ankenSortDir = 'desc';
+function toggleAnkenSort(key) {
+  if (_ankenSortKey === key) {
+    _ankenSortDir = _ankenSortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    _ankenSortKey = key;
+    _ankenSortDir = 'asc';
+  }
+  renderAnkenTable();
+}
 function renderAnkenTable() {
   var q = (document.getElementById('search-input').value || '').toLowerCase();
   var monthFilter = document.getElementById('month-filter').value || '';
@@ -578,18 +608,38 @@ function renderAnkenTable() {
     var matchStatus = currentStatusFilter === 'all' || a.status === currentStatusFilter;
     var matchQ = !q || (a.kokyaku||'').toLowerCase().includes(q) || (a.teianContent||'').toLowerCase().includes(q) || (a.content||'').toLowerCase().includes(q);
     var matchMonth = !monthFilter || (a.juchuDate||'').startsWith(monthFilter) || (a.tsuki||'').startsWith(monthFilter);
-    return matchStatus && matchQ && matchMonth;
+    // 管理者の代理店フィルター
+    var matchDairi = !_adminDairiFilter || (a.dairiNo||'') === _adminDairiFilter || (a.dairiNo2||'') === _adminDairiFilter;
+    return matchStatus && matchQ && matchMonth && matchDairi;
   });
 
-  // ソート（受注日降順）
+  // ソート
+  var sortKey = _ankenSortKey || 'juchuDate';
+  var sortDir = _ankenSortDir || 'desc';
   filtered.sort(function(a, b) {
-    return (b.juchuDate||'').localeCompare(a.juchuDate||'');
+    var va = (a[sortKey]||'').toString();
+    var vb = (b[sortKey]||'').toString();
+    var cmp = va.localeCompare(vb);
+    return sortDir === 'desc' ? -cmp : cmp;
   });
 
   var thead = document.getElementById('anken-thead');
   var tbody = document.getElementById('anken-tbody');
 
-  thead.innerHTML = '<th>種別</th><th>受注日</th><th>顧客名</th><th>ステータス</th><th>契約種別</th><th>卸値（税込）</th><th>完工日</th><th>提案内容</th><th>フォルダ</th>';
+  var isAdmin = agentInfo && agentInfo.role === 'dairiAdmin';
+  function sortTh(label, key) {
+    var arrow = _ankenSortKey === key ? (_ankenSortDir === 'asc' ? ' ▲' : ' ▼') : '';
+    return '<th style="cursor:pointer;user-select:none;" onclick="toggleAnkenSort(\''+key+'\')">'+label+arrow+'</th>';
+  }
+  thead.innerHTML = sortTh('ステータス','status')
+    + (isAdmin ? sortTh('代理店','dairiNo') : '')
+    + '<th>種別</th>'
+    + '<th>受注日</th>'
+    + '<th>顧客名</th>'
+    + sortTh('提案内容','teianContent')
+    + '<th>手数料</th>'
+    + '<th>完工日</th>'
+    + '<th>フォルダ</th>';
 
   if (filtered.length === 0) {
     tbody.innerHTML = '';
@@ -597,23 +647,22 @@ function renderAnkenTable() {
   } else {
     document.getElementById('anken-empty').style.display = 'none';
     tbody.innerHTML = filtered.map(function(a) {
-      // 卸値 = 代理店向けの材工表示
-      var oroshiVal = getOroshiValue(a);
+      var feeVal = calcAgentFee(a);
       var endDate = a.type === 'Stooory' ? a.kojiStart : (a.kojiKanryo || a.kojiEnd);
       var contentVal = a.type === 'Stooory' ? (a.content||'-') : (a.teianContent||'-');
       var folderLink = a.data ? '<a href="'+a.data+'" target="_blank" style="color:var(--accent);" onclick="event.stopPropagation();">📁</a>' : '-';
 
-      return '<tr onclick="openDetail('+a.id+')">'+
-        '<td>'+typePill(a.type)+'</td>'+
-        '<td class="td-date">'+fmtDate(a.juchuDate)+'</td>'+
-        '<td class="td-main">'+( a.kokyaku||'-')+'</td>'+
-        '<td><span class="badge '+statusColor(a.status)+'">'+(a.status||'-')+'</span></td>'+
-        '<td class="td-sub">'+(a.keiyakuType||'-')+'</td>'+
-        '<td class="td-amount">'+fmtYen(oroshiVal)+'</td>'+
-        '<td class="td-date">'+fmtDate(endDate)+'</td>'+
-        '<td class="td-sub">'+contentVal+'</td>'+
-        '<td>'+folderLink+'</td>'+
-        '</tr>';
+      return '<tr onclick="openDetail('+a.id+')">'
+        + '<td><span class="badge '+statusColor(a.status)+'">'+(a.status||'-')+'</span></td>'
+        + (isAdmin ? '<td class="td-sub">'+(a.dairiNo||'-')+'</td>' : '')
+        + '<td>'+typePill(a.type)+'</td>'
+        + '<td class="td-date">'+fmtDate(a.juchuDate)+'</td>'
+        + '<td class="td-main">'+(a.kokyaku||'-')+'</td>'
+        + '<td class="td-sub">'+contentVal+'</td>'
+        + '<td class="td-amount" style="color:var(--accent);">'+fmtYen(feeVal)+'</td>'
+        + '<td class="td-date">'+fmtDate(endDate)+'</td>'
+        + '<td>'+folderLink+'</td>'
+        + '</tr>';
     }).join('');
   }
 
@@ -621,21 +670,32 @@ function renderAnkenTable() {
 }
 
 // ===== 卸値計算 =====
+function calcDairiZairyo(a) {
+  if (parseFloat(a.dairiZairyo)) return parseFloat(a.dairiZairyo);
+  // マスタ卸値をフォールバック
+  var dc = getDairiConfig(a.dairiNo || a.dairiNo2);
+  if (dc.oroshiZairyo && a.teianContent) {
+    var items = (a.teianContent||'').split('・').filter(function(s){return s&&!s.startsWith('その他');});
+    var total = items.reduce(function(s,item){return s+(dc.oroshiZairyo[item.trim()]||0);},0);
+    if (total > 0) return total;
+  }
+  return 0;
+}
+
+function calcDairiKoji(a) {
+  if (parseFloat(a.dairiKoji)) return parseFloat(a.dairiKoji);
+  // マスタ卸値をフォールバック
+  var dc = getDairiConfig(a.dairiNo || a.dairiNo2);
+  if (dc.oroshiKoji && a.kojiContent) {
+    var items = (a.kojiContent||'').split('・').filter(function(s){return s&&!s.startsWith('その他');});
+    var total = items.reduce(function(s,item){return s+(dc.oroshiKoji[item.trim()]||0);},0);
+    if (total > 0) return total;
+  }
+  return 0;
+}
+
 function getOroshiValue(a) {
-  // 代理店向け卸値：材工（税込）を表示
-  // ripuZairyo + ripuKoji があればそちら、なければ zaiko
-  var ripuZ = parseFloat(a.ripuZairyo) || 0;
-  var ripuK = parseFloat(a.ripuKoji) || 0;
-  if (ripuZ || ripuK) return ripuZ + ripuK;
-
-  // 材工（税込）
-  var zaiko = parseFloat(a.zaiko) || 0;
-  if (zaiko) return zaiko;
-
-  // 材料費 + 工事費
-  var z = parseFloat(a.zairyoHi) || 0;
-  var k = parseFloat(a.kojiHi) || 0;
-  return (z + k) || null;
+  return (calcDairiZairyo(a) + calcDairiKoji(a)) || null;
 }
 
 // ===== 統計 =====
@@ -659,17 +719,93 @@ function renderStats(filtered) {
   document.getElementById('st-fee').textContent = Math.round(monthFee / 10000);
 }
 
-// ===== 手数料計算 =====
+// ===== 手数料計算（代理店マスタ設定ベース） =====
+function getDairiConfig(dairiNo) {
+  var list = (settingsData.dairiList || []);
+  var no = dairiNo || (agentInfo ? agentInfo.no : '');
+  return list.find(function(d) { return d.no === no; }) || {};
+}
+
+function isLoanOrLease(a) {
+  var kt = (a.keiyakuType || '').trim();
+  return kt === 'リース' || kt === 'ローン';
+}
+
+// ===== 月額手数料（パターンD） =====
+function isMonthlyFeeTarget(a) {
+  var teian = (a.teianContent || a.content || '').trim();
+  var keiyaku = (a.keiyakuType || '').trim();
+  var st = (a.status || '').trim();
+  // 精算完了・キャンセルは除外
+  if (st === '精算完了' || st === 'キャンセル') return false;
+  var isDenbreRen = teian.indexOf('電ブレ') >= 0 && keiyaku === 'レンタル';
+  var isHoshu = teian.indexOf('保守') >= 0 || st === '保守実施中' || st === '保守契約初回';
+  return isDenbreRen || isHoshu;
+}
+
+function calcMonthlyFee(a, dc) {
+  if (!isMonthlyFeeTarget(a)) return 0;
+  var monthly = parseFloat(a.monthly) || 0;
+  var rate = (dc && dc.monthlyFeeRate || 0) / 100;
+  return Math.round(monthly * rate);
+}
+
+function getMonthlyAnken(ym) {
+  return ankenList.filter(function(a) {
+    if (!isMonthlyFeeTarget(a)) return false;
+    var nyukin = (a.nyukinDate || '').substring(0, 7);
+    if (!nyukin) return false;
+    var matchDairi = !_meisaiDairiFilter || (a.dairiNo||'') === _meisaiDairiFilter || (a.dairiNo2||'') === _meisaiDairiFilter;
+    return ym >= nyukin && matchDairi;
+  });
+}
+
+// ===== 信販手数料計算（共通） =====
+function calcShinpan(a, dc) {
+  // 手入力されていればそちらを優先（0も有効値として扱う）
+  if (a.shinpan !== '' && a.shinpan !== undefined && a.shinpan !== null && !isNaN(parseFloat(a.shinpan))) {
+    return parseFloat(a.shinpan);
+  }
+  // 自動計算はローン・リースのみ
+  if (!isLoanOrLease(a)) return 0;
+  var price = parseFloat(a.price) || 0;
+  var shinpanRate = (dc && dc.shinpanRate || 0) / 100;
+  return Math.round(550 + price * shinpanRate);
+}
+
 function calcAgentFee(a) {
-  // 仲介手数料が設定されていればそれを使用
+  // 仲介手数料が手入力されていればそれを優先
   var chukai = parseFloat(a.chukai) || 0;
   if (chukai) return chukai;
 
-  // 支給金額があればそれ
-  var ripuArari = parseFloat(a.ripuArari) || 0;
-  if (ripuArari) return ripuArari;
+  // 代理店設定を取得（案件のdairiNoから）
+  var dc = getDairiConfig(a.dairiNo || a.dairiNo2);
+  if (!dc.feeType || !dc.feeRate) {
+    return parseFloat(a.ripuArari) || 0;
+  }
 
-  return 0;
+  var price = parseFloat(a.price) || 0;
+  var zaiko = calcDairiZairyo(a) + calcDairiKoji(a);
+  var kotsu = parseFloat(a.dairiKotsu) || 0;
+  var shinpan = calcShinpan(a, dc);
+  var rate = (dc.feeRate || 0) / 100;
+
+  switch (dc.feeType) {
+    case 'arari':
+      // パターンA: (物件価格 - 材工) × 率
+      return Math.round((price - zaiko) * rate);
+
+    case 'uriage':
+      // パターンB: 物件価格 × 率
+      return Math.round(price * rate);
+
+    case 'keisan':
+      // パターンC: (物件価格 - 材工 - 信販手数料 - 交通費) × 率
+      return Math.round((price - zaiko - shinpan - kotsu) * rate);
+
+    default:
+      return 0;
+  }
 }
 
 // ===== 案件詳細 =====
@@ -721,28 +857,52 @@ function openDetail(id) {
   html += detailItem('工事内容', a.kojiContent || '-', true);
   html += '</div></div>';
 
-  // 費用情報（社内と同じ項目）
-  var zairyoVal = parseFloat(a.zairyoHi) || 0;
-  var kojiVal = parseFloat(a.kojiHi) || 0;
-  var zaikoVal = parseFloat(a.zaiko) || (zairyoVal + kojiVal) || 0;
-  var shinpanVal = parseFloat(a.shinpan) || (['リース','ローン'].includes(a.keiyakuType||'') ? 550 : 0);
+  // 費用情報（代理店卸値ベース）
   var priceNum = parseFloat(a.price) || 0;
-  var chukaiVal = parseFloat(a.chukai) || 0;
-  var arariVal = priceNum > 0 ? priceNum - zaikoVal - shinpanVal : 0;
-  var keisanVal = priceNum > 0 ? priceNum - zaikoVal - shinpanVal - chukaiVal : 0;
+  var dZairyo = calcDairiZairyo(a);
+  var dKoji = calcDairiKoji(a);
+  var dKotsu = parseFloat(a.dairiKotsu) || 0;
+  var zaikoVal = dZairyo + dKoji;
+  var dc = getDairiConfig(a.dairiNo || a.dairiNo2);
+  var shinpanVal = calcShinpan(a, dc);
+  var arariVal = priceNum > 0 ? Math.round(priceNum - zaikoVal) : 0;
+  var keisanVal = priceNum > 0 ? Math.round(priceNum - zaikoVal - shinpanVal - dKotsu) : 0;
+  var feeVal = calcAgentFee(a);
 
   html += '<div class="detail-section"><div class="detail-section-title">💰 費用情報</div><div class="detail-grid">';
   html += detailItem('物件価格（税込）', fmtYen(a.price));
-  html += detailItem('材料費', fmtYen(a.zairyoHi));
-  html += detailItem('工事費', fmtYen(a.kojiHi));
-  html += detailItem('材工（税込）', zaikoVal ? fmtYen(zaikoVal) : '-');
   html += detailItem('信販など手数料', shinpanVal ? fmtYen(shinpanVal) : '-');
-  html += detailItem('信販会社', a.shinpanCo || '-');
-  html += detailItem('粗利金額', arariVal > 0 ? fmtYen(arariVal) : '-');
-  html += detailItem('仲介手数料（税込）', chukaiVal ? fmtYen(chukaiVal) : '-');
+  html += detailItem('材料費（卸値）', fmtYen(dZairyo));
+  html += detailItem('交通費', dKotsu ? fmtYen(dKotsu) : '-');
+  html += detailItem('工事費（卸値）', fmtYen(dKoji));
   html += detailItem('計算対象金額', keisanVal > 0 ? fmtYen(keisanVal) : '-');
+  html += detailItem('材工（税込）', zaikoVal ? fmtYen(zaikoVal) : '-');
+  html += detailItem('手数料（自動計算）', '<span style="color:var(--accent);font-weight:700;">' + fmtYen(feeVal) + '</span>');
+  html += detailItem('粗利金額', arariVal > 0 ? fmtYen(arariVal) : '-');
+  html += detailItem('信販会社', a.shinpanCo || '-');
   html += detailItem('入金日', fmtDate(a.nyukinDate));
   html += '</div></div>';
+
+  // 管理者のみ：卸値編集フォーム
+  if (agentInfo.role === 'dairiAdmin') {
+    var rawDZ = parseFloat(a.dairiZairyo) || 0;
+    var rawDK = parseFloat(a.dairiKoji) || 0;
+    var rawDT = parseFloat(a.dairiKotsu) || 0;
+    var rawShinpan = parseFloat(a.shinpan) || 0;
+    html += '<div class="detail-section"><div class="detail-section-title">✏️ 卸値編集（管理者）</div>';
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:8px 0;">';
+    html += '<div><div style="font-size:11px;color:var(--text3);margin-bottom:4px;">材料費（卸値）</div>';
+    html += '<input type="number" id="edit-dairiZairyo" value="'+rawDZ+'" placeholder="マスタ:'+calcDairiZairyo(a)+'" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg2);color:var(--text);"></div>';
+    html += '<div><div style="font-size:11px;color:var(--text3);margin-bottom:4px;">工事費（卸値）</div>';
+    html += '<input type="number" id="edit-dairiKoji" value="'+rawDK+'" placeholder="マスタ:'+calcDairiKoji(a)+'" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg2);color:var(--text);"></div>';
+    html += '<div><div style="font-size:11px;color:var(--text3);margin-bottom:4px;">交通費</div>';
+    html += '<input type="number" id="edit-dairiKotsu" value="'+rawDT+'" placeholder="0" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg2);color:var(--text);"></div>';
+    html += '<div><div style="font-size:11px;color:var(--text3);margin-bottom:4px;">信販など手数料</div>';
+    html += '<input type="number" id="edit-shinpan" value="'+rawShinpan+'" placeholder="自動:'+shinpanVal+'" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--bg2);color:var(--text);"></div>';
+    html += '</div>';
+    html += '<button class="btn" style="margin-top:8px;background:var(--accent);color:#fff;padding:8px 20px;" onclick="saveDairiOroshi('+a.id+')">💾 卸値を保存</button>';
+    html += '</div>';
+  }
 
   // Googleドライブ
   if (a.data || a.contractUrl || a.status3) {
@@ -996,20 +1156,40 @@ function renderMeisai() {
 
   // 入金月基準で抽出
   var monthAnken = ankenList.filter(function(a) {
-    return (a.nyukinDate||'').substring(0,7) === ym;
+    var matchMonth = (a.nyukinDate||'').substring(0,7) === ym;
+    var matchDairi = !_meisaiDairiFilter || (a.dairiNo||'') === _meisaiDairiFilter || (a.dairiNo2||'') === _meisaiDairiFilter;
+    return matchMonth && matchDairi;
   });
 
   var html = '';
 
+  // 月額手数料の対象案件
+  var monthlyAnken = getMonthlyAnken(ym);
+  var totalMonthlyFee = monthlyAnken.reduce(function(s, a) {
+    var dcM = getDairiConfig(a.dairiNo || a.dairiNo2);
+    return s + calcMonthlyFee(a, dcM);
+  }, 0);
+
   // サマリー
   var totalFee = monthAnken.reduce(function(sum, a) { return sum + calcAgentFee(a); }, 0);
-  var totalKeisan = monthAnken.reduce(function(sum, a) { return sum + (parseFloat(a.keisan)||0); }, 0);
+  var grandTotalFee = totalFee + totalMonthlyFee;
+  var totalKeisanSum = monthAnken.reduce(function(s,a){
+    var p=parseFloat(a.price)||0;
+    var z=calcDairiZairyo(a)+calcDairiKoji(a);
+    var dcS=getDairiConfig(a.dairiNo||a.dairiNo2);
+    var sh=calcShinpan(a,dcS);
+    var kt=parseFloat(a.dairiKotsu)||0;
+    return s+(p>0?Math.round(p-z-sh-kt):0);
+  },0);
 
   html += '<div class="meisai-card">';
   html += '<div class="meisai-summary">';
-  html += '<div class="meisai-summary-item"><div class="meisai-summary-label">'+dispMonth+' 手数料合計</div><div class="meisai-summary-value">¥'+totalFee.toLocaleString()+'</div></div>';
-  html += '<div class="meisai-summary-item"><div class="meisai-summary-label">対象案件数</div><div class="meisai-summary-value" style="color:var(--text);">'+monthAnken.length+'<span style="font-size:12px;color:var(--text3);margin-left:4px;">件</span></div></div>';
-  html += '<div class="meisai-summary-item"><div class="meisai-summary-label">計算対象合計</div><div class="meisai-summary-value" style="color:var(--accent2);">¥'+totalKeisan.toLocaleString()+'</div></div>';
+  html += '<div class="meisai-summary-item"><div class="meisai-summary-label">'+dispMonth+' 手数料合計</div><div class="meisai-summary-value">¥'+grandTotalFee.toLocaleString()+'</div></div>';
+  html += '<div class="meisai-summary-item"><div class="meisai-summary-label">対象案件数</div><div class="meisai-summary-value" style="color:var(--text);">'+(monthAnken.length + monthlyAnken.length)+'<span style="font-size:12px;color:var(--text3);margin-left:4px;">件</span></div></div>';
+  html += '<div class="meisai-summary-item"><div class="meisai-summary-label">一括手数料</div><div class="meisai-summary-value" style="color:var(--accent2);">¥'+totalFee.toLocaleString()+'</div></div>';
+  if (totalMonthlyFee > 0) {
+    html += '<div class="meisai-summary-item"><div class="meisai-summary-label">🔄 月額手数料</div><div class="meisai-summary-value" style="color:var(--purple);">¥'+totalMonthlyFee.toLocaleString()+'</div></div>';
+  }
   html += '<div class="meisai-summary-item"><div class="meisai-summary-label">支払予定</div><div class="meisai-summary-value" style="color:var(--purple);font-size:14px;">翌月末</div></div>';
   html += '</div>';
 
@@ -1019,22 +1199,27 @@ function renderMeisai() {
   html += '<thead><tr>';
   html += '<th>受注番号</th><th>受注日</th><th>ステータス</th><th>提案内容</th><th>社名</th><th>住所</th>';
   html += '<th>工事日③</th><th>契約種別</th><th>金額(税込)</th><th>物件価格(税込)</th>';
-  html += '<th>材工</th><th>リプその他</th><th>交通費</th><th>計算対象</th><th>手数料</th><th>受注日</th><th>入金日</th>';
+  html += '<th>材工</th><th>リプその他</th><th>交通費</th><th>計算対象</th><th>手数料</th><th>入金日</th>';
   html += '</tr></thead><tbody>';
 
   if (monthAnken.length === 0) {
-    html += '<tr><td colspan="17" style="text-align:center;padding:24px;color:var(--text3);">該当月の入金データはありません</td></tr>';
+    html += '<tr><td colspan="16" style="text-align:center;padding:24px;color:var(--text3);">該当月の入金データはありません</td></tr>';
   } else {
     monthAnken.forEach(function(a) {
       var fee = calcAgentFee(a);
-      var zaikoVal = parseFloat(a.zaiko) || ((parseFloat(a.zairyoHi)||0) + (parseFloat(a.kojiHi)||0)) || 0;
+      var zaikoVal = calcDairiZairyo(a) + calcDairiKoji(a);
+      var priceVal = parseFloat(a.price) || 0;
+      var kotsuVal = parseFloat(a.dairiKotsu) || 0;
+      var dcM = getDairiConfig(a.dairiNo || a.dairiNo2);
+      var shinpanCalc = calcShinpan(a, dcM);
+      var keisanCalc = priceVal > 0 ? Math.round(priceVal - zaikoVal - shinpanCalc - kotsuVal) : 0;
       html += '<tr>';
-      html += '<td style="font-size:11px;white-space:nowrap;">'+(a.juchuNo||'-')+'</td>';
+      html += '<td>'+(a.juchuNo||'-')+'</td>';
       html += '<td>'+fmtDate(a.juchuDate)+'</td>';
       html += '<td><span class="badge '+statusColor(a.status)+'">'+(a.status||'-')+'</span></td>';
-      html += '<td>'+(a.teianContent||a.content||'-')+'</td>';
-      html += '<td style="font-weight:600;">'+(a.kokyaku||'-')+'</td>';
-      html += '<td style="font-size:11px;">'+(a.addr1||'-')+'</td>';
+      html += '<td title="'+(a.teianContent||'')+'">'+(a.teianContent||a.content||'-')+'</td>';
+      html += '<td title="'+(a.kokyaku||'')+'" style="font-weight:600;">'+(a.kokyaku||'-')+'</td>';
+      html += '<td title="'+(a.addr1||'')+'">'+(a.addr1||'-')+'</td>';
       html += '<td>'+fmtDate(a.shunkoDate)+'</td>';
       html += '<td>'+(a.keiyakuType||'-')+'</td>';
       html += '<td class="td-amount">'+fmtYen(a.price)+'</td>';
@@ -1042,18 +1227,25 @@ function renderMeisai() {
       html += '<td class="td-amount">'+fmtYen(zaikoVal||'')+'</td>';
       html += '<td class="td-amount">'+fmtYen(a.ripuSonota)+'</td>';
       html += '<td class="td-amount">'+fmtYen(a.ripuKotsu)+'</td>';
-      html += '<td class="td-amount">'+fmtYen(a.keisan)+'</td>';
+      html += '<td class="td-amount">'+fmtYen(keisanCalc)+'</td>';
       html += '<td class="td-amount" style="color:var(--accent);font-weight:700;">'+fmtYen(fee)+'</td>';
-      html += '<td>'+fmtDate(a.juchuDate)+'</td>';
       html += '<td>'+fmtDate(a.nyukinDate)+'</td>';
       html += '</tr>';
     });
 
     // 合計行
     var totalPrice = monthAnken.reduce(function(s,a){return s+(parseFloat(a.price)||0);},0);
-    var totalZaiko = monthAnken.reduce(function(s,a){return s+((parseFloat(a.zaiko)||0)||((parseFloat(a.zairyoHi)||0)+(parseFloat(a.kojiHi)||0)));},0);
+    var totalZaiko = monthAnken.reduce(function(s,a){return s+(calcDairiZairyo(a)+calcDairiKoji(a));},0);
     var totalSonota = monthAnken.reduce(function(s,a){return s+(parseFloat(a.ripuSonota)||0);},0);
-    var totalKotsu = monthAnken.reduce(function(s,a){return s+(parseFloat(a.ripuKotsu)||0);},0);
+    var totalKotsu = monthAnken.reduce(function(s,a){return s+(parseFloat(a.dairiKotsu)||0);},0);
+    var totalKeisanCalc = monthAnken.reduce(function(s,a){
+      var p=parseFloat(a.price)||0;
+      var z=calcDairiZairyo(a)+calcDairiKoji(a);
+      var dcT=getDairiConfig(a.dairiNo||a.dairiNo2);
+      var sh=calcShinpan(a,dcT);
+      var kt=parseFloat(a.dairiKotsu)||0;
+      return s+(p>0?Math.round(p-z-sh-kt):0);
+    },0);
     html += '<tr class="total-row">';
     html += '<td colspan="8" style="text-align:right;padding-right:20px;">合計</td>';
     html += '<td>¥'+totalPrice.toLocaleString()+'</td>';
@@ -1061,14 +1253,56 @@ function renderMeisai() {
     html += '<td>¥'+totalZaiko.toLocaleString()+'</td>';
     html += '<td>¥'+totalSonota.toLocaleString()+'</td>';
     html += '<td>¥'+totalKotsu.toLocaleString()+'</td>';
-    html += '<td>¥'+totalKeisan.toLocaleString()+'</td>';
+    html += '<td>¥'+totalKeisanCalc.toLocaleString()+'</td>';
     html += '<td>¥'+totalFee.toLocaleString()+'</td>';
-    html += '<td></td><td></td>';
+    html += '<td></td>';
     html += '</tr>';
   }
 
   html += '</tbody></table></div>';
   html += '</div>';
+
+  // 月額手数料セクション（レンタル及び保守契約）
+  if (monthlyAnken.length > 0) {
+    html += '<div class="meisai-card">';
+    html += '<div class="meisai-header"><div class="meisai-title">🔄 レンタル及び保守契約（月額手数料）</div></div>';
+    html += '<div style="overflow-x:auto;">';
+    html += '<table class="meisai-table">';
+    html += '<thead><tr>';
+    html += '<th>受注番号</th><th>受注日</th><th>ステータス</th><th>提案内容</th><th>社名</th><th>住所</th>';
+    html += '<th>契約種別</th><th>月額(税込)</th><th>手数料率</th><th>月額手数料</th><th>入金日</th>';
+    html += '</tr></thead><tbody>';
+
+    var totalMonthlyFeeTable = 0;
+    monthlyAnken.forEach(function(a) {
+      var dcMA = getDairiConfig(a.dairiNo || a.dairiNo2);
+      var mFee = calcMonthlyFee(a, dcMA);
+      var mRate = dcMA.monthlyFeeRate || 0;
+      totalMonthlyFeeTable += mFee;
+      html += '<tr>';
+      html += '<td>'+(a.juchuNo||'-')+'</td>';
+      html += '<td>'+fmtDate(a.juchuDate)+'</td>';
+      html += '<td><span class="badge '+statusColor(a.status)+'">'+(a.status||'-')+'</span></td>';
+      html += '<td>'+(a.teianContent||a.content||'-')+'</td>';
+      html += '<td style="font-weight:600;">'+(a.kokyaku||'-')+'</td>';
+      html += '<td>'+(a.addr1||'-')+'</td>';
+      html += '<td>'+(a.keiyakuType||'-')+'</td>';
+      html += '<td class="td-amount">'+fmtYen(a.monthly)+'</td>';
+      html += '<td style="text-align:right;">'+mRate+'%</td>';
+      html += '<td class="td-amount" style="color:var(--purple);font-weight:700;">'+fmtYen(mFee)+'</td>';
+      html += '<td>'+fmtDate(a.nyukinDate)+'</td>';
+      html += '</tr>';
+    });
+
+    html += '<tr class="total-row">';
+    html += '<td colspan="9" style="text-align:right;padding-right:20px;">月額手数料合計</td>';
+    html += '<td>¥'+totalMonthlyFeeTable.toLocaleString()+'</td>';
+    html += '<td></td>';
+    html += '</tr>';
+
+    html += '</tbody></table></div>';
+    html += '</div>';
+  }
 
   // 過去6ヶ月分のサマリー
   html += '<div class="meisai-card">';
@@ -1092,7 +1326,13 @@ function renderMonthlyChart(currentYm) {
     var fee = ankenList.filter(function(a) {
       return (a.nyukinDate||'').substring(0,7) === ym;
     }).reduce(function(sum, a) { return sum + calcAgentFee(a); }, 0);
-    return { ym: ym, fee: fee };
+    // 月額手数料も加算
+    var mAnken = getMonthlyAnken(ym);
+    var mFee = mAnken.reduce(function(s, a) {
+      var dcC = getDairiConfig(a.dairiNo || a.dairiNo2);
+      return s + calcMonthlyFee(a, dcC);
+    }, 0);
+    return { ym: ym, fee: fee + mFee };
   });
 
   var maxFee = Math.max.apply(null, data.map(function(d) { return d.fee; })) || 1;
@@ -1115,10 +1355,240 @@ function renderMonthlyChart(currentYm) {
 
 // ===== 印刷 =====
 function printMeisai() {
-  window.print();
+  var ym = document.getElementById('meisai-month').value;
+  var ymParts = ym.split('-');
+  var dispMonth = ymParts[0]+'年'+parseInt(ymParts[1])+'月';
+
+  var monthAnken = ankenList.filter(function(a) {
+    return (a.nyukinDate||'').substring(0,7) === ym;
+  });
+
+  var totalFee = monthAnken.reduce(function(s,a){return s+calcAgentFee(a);},0);
+
+  // テーブル行を生成
+  var rows = '';
+  monthAnken.forEach(function(a, i) {
+    var fee = calcAgentFee(a);
+    var zk = calcDairiZairyo(a)+calcDairiKoji(a);
+    var p = parseFloat(a.price)||0;
+    var dcP = getDairiConfig(a.dairiNo||a.dairiNo2);
+    var sh = calcShinpan(a, dcP);
+    var kt = parseFloat(a.dairiKotsu)||0;
+    var keisan = p>0?Math.round(p-zk-sh-kt):0;
+    rows += '<tr>'
+      + '<td>'+(a.juchuNo||'-')+'</td>'
+      + '<td>'+fmtDate(a.juchuDate)+'</td>'
+      + '<td>'+(a.status||'-')+'</td>'
+      + '<td>'+(a.teianContent||a.content||'-')+'</td>'
+      + '<td>'+(a.kokyaku||'-')+'</td>'
+      + '<td>'+(a.addr1||'-')+'</td>'
+      + '<td>'+fmtDate(a.shunkoDate)+'</td>'
+      + '<td>'+(a.keiyakuType||'-')+'</td>'
+      + '<td style="text-align:right;">'+fmtYen(a.price)+'</td>'
+      + '<td style="text-align:right;">'+fmtYen(a.price)+'</td>'
+      + '<td style="text-align:right;">'+fmtYen(zk)+'</td>'
+      + '<td style="text-align:right;">'+fmtYen(a.ripuSonota)+'</td>'
+      + '<td style="text-align:right;">'+fmtYen(a.ripuKotsu)+'</td>'
+      + '<td style="text-align:right;">'+fmtYen(keisan)+'</td>'
+      + '<td style="text-align:right;font-weight:700;">'+fmtYen(fee)+'</td>'
+      + '<td>'+fmtDate(a.nyukinDate)+'</td>'
+      + '</tr>';
+  });
+
+  // 合計行
+  var tPrice=0,tZk=0,tSon=0,tKot=0,tKei=0;
+  monthAnken.forEach(function(a){
+    tPrice+=parseFloat(a.price)||0;
+    tZk+=calcDairiZairyo(a)+calcDairiKoji(a);
+    tSon+=parseFloat(a.ripuSonota)||0;
+    tKot+=parseFloat(a.dairiKotsu)||0;
+    var p=parseFloat(a.price)||0,z=calcDairiZairyo(a)+calcDairiKoji(a);
+    var dcT2=getDairiConfig(a.dairiNo||a.dairiNo2);
+    var sh=calcShinpan(a,dcT2);
+    var kt=parseFloat(a.dairiKotsu)||0;
+    tKei+=p>0?Math.round(p-z-sh-kt):0;
+  });
+  rows += '<tr style="font-weight:700;background:#f0f5ff;">'
+    + '<td colspan="8" style="text-align:right;">合計</td>'
+    + '<td style="text-align:right;">¥'+tPrice.toLocaleString()+'</td>'
+    + '<td style="text-align:right;">¥'+tPrice.toLocaleString()+'</td>'
+    + '<td style="text-align:right;">¥'+tZk.toLocaleString()+'</td>'
+    + '<td style="text-align:right;">¥'+tSon.toLocaleString()+'</td>'
+    + '<td style="text-align:right;">¥'+tKot.toLocaleString()+'</td>'
+    + '<td style="text-align:right;">¥'+tKei.toLocaleString()+'</td>'
+    + '<td style="text-align:right;">¥'+totalFee.toLocaleString()+'</td>'
+    + '<td></td></tr>';
+
+  // 月額手数料（印刷用）
+  var pMonthlyAnken = getMonthlyAnken(ym);
+  var pMonthlyFee = pMonthlyAnken.reduce(function(s,a){
+    var dcP = getDairiConfig(a.dairiNo||a.dairiNo2);
+    return s + calcMonthlyFee(a, dcP);
+  }, 0);
+  var pGrandTotal = totalFee + pMonthlyFee;
+
+  var monthlyRows = '';
+  if (pMonthlyAnken.length > 0) {
+    monthlyRows = '<h3 style="margin:16px 0 8px;font-size:11px;">🔄 レンタル及び保守契約（月額手数料）</h3>'
+      + '<table><thead><tr>'
+      + '<th>受注番号</th><th>受注日</th><th>ステータス</th><th>提案内容</th><th>社名</th><th>住所</th>'
+      + '<th>契約種別</th><th>月額(税込)</th><th>手数料率</th><th>月額手数料</th><th>入金日</th>'
+      + '</tr></thead><tbody>';
+    pMonthlyAnken.forEach(function(a) {
+      var dcPM = getDairiConfig(a.dairiNo||a.dairiNo2);
+      var mf = calcMonthlyFee(a, dcPM);
+      var mr = dcPM.monthlyFeeRate || 0;
+      monthlyRows += '<tr>'
+        + '<td>'+(a.juchuNo||'-')+'</td>'
+        + '<td>'+fmtDate(a.juchuDate)+'</td>'
+        + '<td>'+(a.status||'-')+'</td>'
+        + '<td>'+(a.teianContent||a.content||'-')+'</td>'
+        + '<td>'+(a.kokyaku||'-')+'</td>'
+        + '<td>'+(a.addr1||'-')+'</td>'
+        + '<td>'+(a.keiyakuType||'-')+'</td>'
+        + '<td style="text-align:right;">'+fmtYen(a.monthly)+'</td>'
+        + '<td style="text-align:right;">'+mr+'%</td>'
+        + '<td style="text-align:right;font-weight:700;">'+fmtYen(mf)+'</td>'
+        + '<td>'+fmtDate(a.nyukinDate)+'</td>'
+        + '</tr>';
+    });
+    monthlyRows += '<tr style="font-weight:700;background:#f0f5ff;">'
+      + '<td colspan="9" style="text-align:right;">月額手数料合計</td>'
+      + '<td style="text-align:right;">¥'+pMonthlyFee.toLocaleString()+'</td>'
+      + '<td></td></tr>';
+    monthlyRows += '</tbody></table>';
+  }
+
+  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>支払手数料明細</title>'
+    + '<style>'
+    + '@page{size:landscape;margin:10mm;}'
+    + 'body{font-family:"Hiragino Kaku Gothic Pro","Meiryo",sans-serif;font-size:8px;color:#222;margin:0;padding:0;}'
+    + '.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;}'
+    + '.title{font-size:16px;font-weight:700;}'
+    + '.info{text-align:right;font-size:10px;line-height:1.6;}'
+    + '.info b{font-size:11px;}'
+    + '.summary{display:flex;gap:24px;margin-bottom:10px;padding:8px 12px;background:#f0f5ff;border-radius:4px;font-size:10px;}'
+    + '.summary b{font-size:13px;}'
+    + 'table{width:100%;border-collapse:collapse;margin-bottom:12px;}'
+    + 'th{background:#e8edf5;padding:4px 3px;font-size:7px;font-weight:700;border:1px solid #ccc;text-align:left;white-space:nowrap;}'
+    + 'td{padding:3px;border:1px solid #ddd;font-size:8px;white-space:nowrap;}'
+    + '</style></head><body>'
+    + '<div class="header">'
+    + '<div class="title">○支払手数料明細</div>'
+    + '<div class="info"><b>'+agentInfo.no+' '+(agentInfo.name||'')+'</b><br>対象月: '+dispMonth+'<br>手数料総額: <b>¥'+pGrandTotal.toLocaleString()+'</b></div>'
+    + '</div>'
+    + '<div class="summary">'
+    + '<div>対象月: <b>'+dispMonth+'</b></div>'
+    + '<div>一括手数料: <b style="color:#2563eb;">¥'+totalFee.toLocaleString()+'</b></div>'
+    + (pMonthlyFee > 0 ? '<div>月額手数料: <b style="color:#7c3aed;">¥'+pMonthlyFee.toLocaleString()+'</b></div>' : '')
+    + '<div>手数料合計: <b style="color:#2563eb;">¥'+pGrandTotal.toLocaleString()+'</b></div>'
+    + '<div>支払予定: <b>翌月末</b></div>'
+    + '</div>'
+    + '<table>'
+    + '<thead><tr>'
+    + '<th>受注番号</th><th>受注日</th><th>ステータス</th><th>提案内容</th><th>社名</th><th>住所</th>'
+    + '<th>工事日③</th><th>契約種別</th><th>金額(税込)</th><th>物件価格(税込)</th>'
+    + '<th>材工</th><th>リプその他</th><th>交通費</th><th>計算対象</th><th>手数料</th><th>入金日</th>'
+    + '</tr></thead><tbody>'
+    + rows
+    + '</tbody></table>'
+    + monthlyRows
+    + '</body></html>';
+
+  var win = window.open('','_blank','width=1200,height=800');
+  win.document.write(html);
+  win.document.close();
+  setTimeout(function(){ win.print(); }, 800);
 }
 
-// ===== CSV出力 =====
+// ===== 管理者用：代理店フィルター =====
+var _adminDairiFilter = '';
+function renderDairiFilter() {
+  var dairiList = settingsData.dairiList || [];
+  var wrap = document.getElementById('admin-dairi-filter');
+  if (!wrap) {
+    var pageAnken = document.getElementById('page-anken');
+    var firstChild = pageAnken.firstChild;
+    wrap = document.createElement('div');
+    wrap.id = 'admin-dairi-filter';
+    wrap.style.cssText = 'padding:12px 28px;background:linear-gradient(135deg,#fef3c7,#fde68a);border-bottom:1px solid #f59e0b;display:flex;align-items:center;gap:12px;';
+    wrap.innerHTML = '<span style="font-size:12px;font-weight:700;color:#92400e;">👑 管理者モード</span>'
+      + '<select id="admin-dairi-sel" onchange="filterByDairi()" style="padding:6px 10px;border:1px solid #d97706;border-radius:6px;font-size:12px;background:#fff;min-width:200px;">'
+      + '<option value="">すべての代理店</option>'
+      + dairiList.map(function(d){return '<option value="'+d.no+'">'+d.no+' '+d.name+'</option>';}).join('')
+      + '</select>';
+    pageAnken.insertBefore(wrap, firstChild);
+  }
+}
+
+var _meisaiDairiFilter = '';
+function renderMeisaiDairiFilter() {
+  var dairiList = settingsData.dairiList || [];
+  var wrap = document.getElementById('meisai-dairi-filter');
+  if (!wrap) return;
+  wrap.style.cssText = 'padding:12px 28px;background:linear-gradient(135deg,#fef3c7,#fde68a);border-bottom:1px solid #f59e0b;display:flex;align-items:center;gap:12px;margin-bottom:8px;border-radius:8px;';
+  wrap.innerHTML = '<span style="font-size:12px;font-weight:700;color:#92400e;">👑 代理店選択</span>'
+    + '<select id="meisai-dairi-sel" onchange="filterMeisaiByDairi()" style="padding:6px 10px;border:1px solid #d97706;border-radius:6px;font-size:12px;background:#fff;min-width:200px;">'
+    + '<option value="">すべての代理店</option>'
+    + dairiList.map(function(d){return '<option value="'+d.no+'">'+d.no+' '+d.name+'</option>';}).join('')
+    + '</select>';
+}
+
+function filterMeisaiByDairi() {
+  var sel = document.getElementById('meisai-dairi-sel');
+  _meisaiDairiFilter = sel ? sel.value : '';
+  renderMeisai();
+}
+
+function filterByDairi() {
+  var sel = document.getElementById('admin-dairi-sel');
+  _adminDairiFilter = sel ? sel.value : '';
+  renderAnkenTable();
+}
+
+// 管理者用：案件の代理店設定を取得
+function getDairiForAnken(a) {
+  var no = a.dairiNo || a.dairiNo2 || '';
+  var list = (settingsData.dairiList || []);
+  return list.find(function(d){return d.no === no;}) || {};
+}
+
+// ===== 卸値保存（管理者用） =====
+async function saveDairiOroshi(ankenId) {
+  var dz = document.getElementById('edit-dairiZairyo');
+  var dk = document.getElementById('edit-dairiKoji');
+  var dt = document.getElementById('edit-dairiKotsu');
+  var ds = document.getElementById('edit-shinpan');
+  if (!dz || !dk) return;
+
+  try {
+    var sendData = {
+      id: ankenId,
+      dairiZairyo: Number(dz.value) || 0,
+      dairiKoji: Number(dk.value) || 0,
+      dairiKotsu: Number(dt.value) || 0
+    };
+    if (ds) sendData.shinpan = Number(ds.value) || 0;
+    var res = await apiCall('saveDairiOroshi', { data: sendData });
+    if (res.ok) {
+      var a = ankenList.find(function(x){return x.id == ankenId;});
+      if (a) {
+        a.dairiZairyo = Number(dz.value) || 0;
+        a.dairiKoji = Number(dk.value) || 0;
+        a.dairiKotsu = Number(dt.value) || 0;
+        if (ds) a.shinpan = Number(ds.value) || 0;
+      }
+      showToast('✅ 卸値を保存しました');
+      renderAnkenTable();
+      openDetail(ankenId); // 再描画
+    } else {
+      showToast('❌ ' + (res.error || '保存エラー'));
+    }
+  } catch(e) {
+    showToast('❌ 通信エラー: ' + e.message);
+  }
+}
+
 function exportAgentCsv() {
   var csv = '\uFEFF受注日,顧客名,種別,ステータス,契約種別,提案内容,卸値,手数料,完工日\n';
   ankenList.forEach(function(a) {
