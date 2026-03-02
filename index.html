@@ -444,6 +444,7 @@ tbody tr:hover td { background: #f7f9ff; }
         <button class="btn btn-ghost btn-sm" onclick="openCsvModal()">📥 CSVインポート</button>
         <button class="btn btn-ghost btn-sm" onclick="openExportModal()">📤 エクスポート</button>
         
+        <button class="btn btn-ghost" onclick="openGacchankoModal()">📋 コピペ取込</button>
         <button class="btn btn-primary" onclick="openNewModal()">＋ 新規案件</button>
       </div>
     </div>
@@ -979,6 +980,47 @@ tbody tr:hover td { background: #f7f9ff; }
     <button class="close-btn" onclick="document.getElementById('kokyaku-panel').classList.remove('open')">×</button>
   </div>
   <div id="kokyaku-detail-body"></div>
+</div>
+
+<!-- がっちゃんこ（コピペ取込）モーダル -->
+<div class="modal-bg" id="gacchanko-modal">
+  <div class="modal" style="width:900px;max-width:95vw;">
+    <div class="modal-hd">
+      <div>
+        <div class="modal-title">📋 コピペ取込（がっちゃんこ）</div>
+        <div class="modal-sub">信販サイトと電力サイトの情報を貼り付けて自動で案件フォームに反映します</div>
+      </div>
+      <button class="close-btn" onclick="closeGacchankoModal()">×</button>
+    </div>
+    <div class="modal-body" style="max-height:70vh;overflow-y:auto;">
+      <div style="display:flex;gap:16px;flex-wrap:wrap;">
+        <!-- ① 信販情報 -->
+        <div style="flex:1;min-width:300px;">
+          <div style="font-weight:700;font-size:14px;margin-bottom:6px;">① 信販情報（アプラス等）</div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">申込情報ページをコピー＆ペーストしてください。法人/個人は自動判別されます。</div>
+          <textarea id="gc-shinpan" rows="12" style="width:100%;font-size:11px;font-family:monospace;padding:10px;border:1px solid var(--border);border-radius:8px;resize:vertical;" placeholder="信販サイトの申込情報をここにペースト..."></textarea>
+          <div id="gc-shinpan-status" style="font-size:11px;margin-top:4px;color:var(--text3);"></div>
+        </div>
+        <!-- ② 電力情報 -->
+        <div style="flex:1;min-width:300px;">
+          <div style="font-weight:700;font-size:14px;margin-bottom:6px;">② 電力情報（供給地点情報）</div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">電力会社サイトの供給地点情報をコピー＆ペーストしてください。</div>
+          <textarea id="gc-denki" rows="12" style="width:100%;font-size:11px;font-family:monospace;padding:10px;border:1px solid var(--border);border-radius:8px;resize:vertical;" placeholder="電力サイトの供給地点情報をここにペースト..."></textarea>
+          <div id="gc-denki-status" style="font-size:11px;margin-top:4px;color:var(--text3);"></div>
+        </div>
+      </div>
+      <!-- プレビュー -->
+      <div id="gc-preview" style="display:none;margin-top:16px;">
+        <div style="font-weight:700;font-size:14px;margin-bottom:8px;color:var(--accent);">✅ 抽出結果プレビュー</div>
+        <div id="gc-preview-body" style="background:var(--bg3);border-radius:8px;padding:14px;font-size:12px;"></div>
+      </div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn btn-ghost" onclick="closeGacchankoModal()">キャンセル</button>
+      <button class="btn btn-ghost" onclick="parseGacchanko()" style="color:var(--accent);border-color:var(--accent);">🔍 解析する</button>
+      <button class="btn btn-primary" id="gc-apply-btn" onclick="applyGacchanko()" disabled>📝 案件フォームに反映</button>
+    </div>
+  </div>
 </div>
 
 <!-- 新規案件モーダル -->
@@ -2770,6 +2812,329 @@ function rebuildForm() {
   const type = document.getElementById('f-type').value;
   const currentData = getFormData();
   document.getElementById('modal-body-content').innerHTML = buildForm(type, currentData);
+}
+
+// ============================================================
+// がっちゃんこ（コピペ取込）
+// ============================================================
+var _gacchankoData = null;
+
+function openGacchankoModal() {
+  document.getElementById('gc-shinpan').value = '';
+  document.getElementById('gc-denki').value = '';
+  document.getElementById('gc-shinpan-status').textContent = '';
+  document.getElementById('gc-denki-status').textContent = '';
+  document.getElementById('gc-preview').style.display = 'none';
+  document.getElementById('gc-apply-btn').disabled = true;
+  _gacchankoData = null;
+  document.getElementById('gacchanko-modal').classList.add('open');
+}
+
+function closeGacchankoModal() {
+  document.getElementById('gacchanko-modal').classList.remove('open');
+}
+
+// ① 信販情報パーサー
+function parseShinpan(text) {
+  if (!text.trim()) return null;
+  var r = {};
+
+  // 法人/個人判定
+  var isHojin = /申込顧客種類\s*法人/.test(text);
+  r._type = isHojin ? 'A' : 'B';
+
+  // キーと値をペアで抽出するヘルパー
+  function extract(pattern) {
+    var m = text.match(pattern);
+    return m ? m[1].trim() : '';
+  }
+
+  // 申込日 → 受注日
+  r.juchuDate = extract(/申込日\s+(\d{4}年\d{2}月\d{2}日)/);
+  if (r.juchuDate) r.juchuDate = r.juchuDate.replace(/年/,'-').replace(/月/,'-').replace(/日/,'');
+
+  // 月
+  r.tsuki = extract(/申込日\s+(\d{4}年\d{2}月)/);
+  if (r.tsuki) r.tsuki = r.tsuki.replace(/年/,'-').replace(/月/,'');
+
+  if (isHojin) {
+    // A: 法人
+    r.kokyaku = extract(/法人名（漢字）\s+(.+)/);
+    r.kokyakuKana = extract(/法人名（カナ）\s+(.+)/);
+
+    // 代表者名: 姓+名
+    var repSei = extract(/代表者名（漢字）[\s\S]*?姓（漢字）\s*\n?\s*(.+)/);
+    var repMei = extract(/代表者名（漢字）[\s\S]*?名（漢字）\s*\n?\s*(.+)/);
+    // より確実なパース: 代表者名ブロックを探す
+    var repBlock = text.match(/代表者名（漢字）[\s\S]*?姓（漢字）\s*\n\s*(.+)\s*\n\s*名（漢字）\s*\n\s*(.+)/);
+    if (repBlock) { repSei = repBlock[1].trim(); repMei = repBlock[2].trim(); }
+    r.rep = (repSei + '　' + repMei).trim();
+
+    var repKanaSei = '', repKanaMei = '';
+    var repKanaBlock = text.match(/代表者名（カナ）[\s\S]*?姓（カナ）\s*\n\s*(.+)\s*\n\s*名（カナ）\s*\n\s*(.+)/);
+    if (repKanaBlock) { repKanaSei = repKanaBlock[1].trim(); repKanaMei = repKanaBlock[2].trim(); }
+    r.repKana = (repKanaSei + ' ' + repKanaMei).trim();
+
+    // 住所（法人本社）
+    r.zip = extract(/お申込み法人について[\s\S]*?郵便番号[\s\S]*?〒\s*\n?\s*(\d{7})/);
+    var addrPref = extract(/お申込み法人について[\s\S]*?住所（都道府県・市区町村名）\s+(.+)/);
+    var addrTown = extract(/お申込み法人について[\s\S]*?住所（町名・丁目）\s+(.+)/);
+    var addrBanchi = extract(/お申込み法人について[\s\S]*?住所（番地以降）\s+(.+)/);
+    r.addr1 = (addrPref + addrTown + addrBanchi).trim();
+    r.addr2 = extract(/お申込み法人について[\s\S]*?住所（ビル・建物名・部屋番号）\s+(.+)/);
+    // （カナ）行を誤って拾った場合は空にする
+    if (r.addr2 && (/（カナ）/.test(r.addr2) || /^\s*$/.test(r.addr2))) r.addr2 = '';
+
+    // 電話
+    var telMatch = text.match(/お申込み法人について[\s\S]*?電話番号\s*\n\s*(\d+)\s*\n\s*-\s*\n\s*(\d+)\s*\n\s*-\s*\n\s*(\d+)/);
+    r.tel = telMatch ? telMatch[1]+'-'+telMatch[2]+'-'+telMatch[3] : '';
+
+    // 携帯（連帯保証人の携帯を代理で取得）
+    var keitaiMatch = text.match(/携帯電話番号\s*\n\s*(\d+)\s*\n\s*-\s*\n\s*(\d+)\s*\n\s*-\s*\n\s*(\d+)/);
+    if (keitaiMatch) {
+      var keitai = keitaiMatch[1]+'-'+keitaiMatch[2]+'-'+keitaiMatch[3];
+      r.tel = r.tel ? r.tel + ' / ' + keitai : keitai;
+    }
+  } else {
+    // B: 個人
+    // 勤務先名 → 社名
+    r.kokyaku = extract(/勤務先名（漢字）\s+(.+)/);
+    r.kokyakuKana = extract(/勤務先名（カナ）\s+(.+)/);
+
+    // 本人氏名 → 代表者名
+    var honninBlock = text.match(/ご本人様氏名（漢字）[\s\S]*?姓（漢字）\s*\n\s*(.+)\s*\n\s*名（漢字）\s*\n\s*(.+)/);
+    if (honninBlock) r.rep = (honninBlock[1].trim() + '　' + honninBlock[2].trim());
+    else r.rep = '';
+
+    var honninKanaBlock = text.match(/ご本人様氏名（カナ）[\s\S]*?姓（カナ）\s*\n\s*(.+)\s*\n\s*名（カナ）\s*\n\s*(.+)/);
+    if (honninKanaBlock) r.repKana = (honninKanaBlock[1].trim() + ' ' + honninKanaBlock[2].trim());
+    else r.repKana = '';
+
+    // 自宅住所
+    r.zip = extract(/自宅住所情報[\s\S]*?郵便番号[\s\S]*?〒\s*\n?\s*(\d{7})/);
+    var addrPrefB = extract(/自宅住所情報[\s\S]*?住所（都道府県・市区町村名）\s+(.+)/);
+    var addrTownB = extract(/自宅住所情報[\s\S]*?住所（町名・丁目）\s+(.+)/);
+    var addrBanchiB = extract(/自宅住所情報[\s\S]*?住所（番地以降）\s+(.+)/);
+    r.addr1 = (addrPrefB + addrTownB + addrBanchiB).trim();
+    r.addr2 = extract(/自宅住所情報[\s\S]*?住所（ビル・建物名・部屋番号）\s+(.+)/);
+    if (r.addr2 && (/（カナ）/.test(r.addr2) || /^\s*$/.test(r.addr2))) r.addr2 = '';
+
+    // 電話（本人の電話+携帯）
+    var telMatchB = text.match(/電話番号\s*\n\s*(\d+)\s*\n\s*-\s*\n\s*(\d+)\s*\n\s*-\s*\n\s*(\d+)/);
+    var keitaiMatchB = text.match(/携帯電話番号\s*\n\s*(\d+)\s*\n\s*-\s*\n\s*(\d+)\s*\n\s*-\s*\n\s*(\d+)/);
+    var tels = [];
+    if (telMatchB) tels.push(telMatchB[1]+'-'+telMatchB[2]+'-'+telMatchB[3]);
+    if (keitaiMatchB) tels.push(keitaiMatchB[1]+'-'+keitaiMatchB[2]+'-'+keitaiMatchB[3]);
+    r.tel = tels.join(' / ');
+
+    // 設置先連絡（勤務先電話）
+    var shokubaTelMatch = text.match(/勤務先情報[\s\S]*?電話番号\s*\n\s*(\d+)\s*\n\s*-\s*\n\s*(\d+)\s*\n\s*-\s*\n\s*(\d+)/);
+    r.setchiContact = shokubaTelMatch ? shokubaTelMatch[1]+'-'+shokubaTelMatch[2]+'-'+shokubaTelMatch[3] : '';
+  }
+
+  // 共通項目
+  r.gyoshu = extract(/業種\s+(.+)/);
+  r.birthday = extract(/生年月日（西暦）\s+(\d{4}年\d{2}月\d{2}日)/);
+  if (r.birthday) r.birthday = r.birthday.replace(/年/,'-').replace(/月/,'-').replace(/日/,'');
+
+  // 商品・費用情報
+  r.price = extract(/商品価格（円）\s*\n\s*([\d,]+)/);
+  if (r.price) r.price = r.price.replace(/,/g,'');
+
+  r.period = extract(/お支払回数\s*\n\s*(\d+)/);
+  r.monthly = extract(/第２回目以降（金額）（円）\s*\n\s*([\d,]+)/);
+  if (r.monthly) r.monthly = r.monthly.replace(/,/g,'');
+
+  r.teianCount = extract(/期間（何ヶ月）・数量・回数\s+(\d+)/);
+
+  // 〒をフォーマット
+  if (r.zip && r.zip.length === 7) r.zip = r.zip.slice(0,3) + '-' + r.zip.slice(3);
+
+  return r;
+}
+
+// ② 電力情報パーサー
+function parseDenki(text) {
+  if (!text.trim()) return null;
+  var r = {};
+
+  // 供給地点特定番号
+  var chitenMatch = text.match(/供給地点特定番号\s*(\d{22}|\d+)/);
+  r.chitenDoryoku = chitenMatch ? chitenMatch[1] : '';
+
+  // 契約電力（容量）
+  var capacityMatch = text.match(/契約電力\s*(\d+\s*kW)/);
+  r.yoyoCapacity = capacityMatch ? capacityMatch[1] : '';
+
+  // 計器番号（１）
+  var keikiMatch = text.match(/計器番号（１）\s*([A-Za-z0-9]+)/);
+  r.keikiNo = keikiMatch ? keikiMatch[1] : '';
+
+  // 供給地点住所
+  var addrMatch = text.match(/供給地点住所\s*(\d{3}[\-]?\d{4})\s*(.+?)(?:建物名|計器番号)/s);
+  if (addrMatch) {
+    r.setchiZip = addrMatch[1];
+    r.kojiAddr = addrMatch[2].trim();
+  } else {
+    // フォールバック
+    var addrMatch2 = text.match(/供給地点住所\s*([\d\-]+)\s*(.+?)(?:建物名|計器)/s);
+    if (addrMatch2) {
+      r.setchiZip = addrMatch2[1];
+      r.kojiAddr = addrMatch2[2].trim();
+    }
+  }
+
+  // 他契約形態 → 地点番号：電灯
+  var taMatch = text.match(/他契約形態[\s\S]*?供給地点特定番号\s*(\d+)/);
+  // 他契約形態セクション内の地点番号があればそれを電灯として使う
+  // テキスト末尾付近を確認
+  var taSection = text.split(/他契約形態/);
+  if (taSection.length > 1) {
+    var taText = taSection[1];
+    var taDentoMatch = taText.match(/(\d{22})/);
+    if (taDentoMatch) r.chitenDento = taDentoMatch[1];
+  }
+
+  return r;
+}
+
+function parseGacchanko() {
+  var shinpanText = document.getElementById('gc-shinpan').value;
+  var denkiText = document.getElementById('gc-denki').value;
+
+  var shinpan = parseShinpan(shinpanText);
+  var denki = parseDenki(denkiText);
+
+  // ステータス表示
+  if (shinpan) {
+    document.getElementById('gc-shinpan-status').innerHTML = '<span style="color:var(--green);">✅ ' + (shinpan._type === 'A' ? '法人申込' : '個人申込') + 'として認識</span>';
+  } else if (shinpanText.trim()) {
+    document.getElementById('gc-shinpan-status').innerHTML = '<span style="color:var(--danger);">❌ 解析できませんでした</span>';
+  }
+
+  if (denki && denki.chitenDoryoku) {
+    document.getElementById('gc-denki-status').innerHTML = '<span style="color:var(--green);">✅ 供給地点情報を認識</span>';
+  } else if (denkiText.trim()) {
+    document.getElementById('gc-denki-status').innerHTML = '<span style="color:var(--danger);">❌ 解析できませんでした</span>';
+  }
+
+  // がっちゃんこ（マージ）
+  _gacchankoData = {};
+  if (shinpan) Object.assign(_gacchankoData, shinpan);
+  if (denki) Object.assign(_gacchankoData, denki);
+  // 新品をデフォルト
+  _gacchankoData.shinchu = '新品';
+
+  // プレビュー表示
+  if (Object.keys(_gacchankoData).length > 1) {
+    var previewItems = [
+      ['社名', _gacchankoData.kokyaku],
+      ['社名フリガナ', _gacchankoData.kokyakuKana],
+      ['代表者名', _gacchankoData.rep],
+      ['代表者フリガナ', _gacchankoData.repKana],
+      ['〒', _gacchankoData.zip],
+      ['申込住所', _gacchankoData.addr1],
+      ['申込住所②', _gacchankoData.addr2],
+      ['電話', _gacchankoData.tel],
+      ['業種', _gacchankoData.gyoshu],
+      ['生年月日', _gacchankoData.birthday],
+      ['受注日', _gacchankoData.juchuDate],
+      ['月', _gacchankoData.tsuki],
+      ['物件価格', _gacchankoData.price ? '¥'+Number(_gacchankoData.price).toLocaleString() : ''],
+      ['期間', _gacchankoData.period ? _gacchankoData.period + '回' : ''],
+      ['月額', _gacchankoData.monthly ? '¥'+Number(_gacchankoData.monthly).toLocaleString() : ''],
+      ['個数', _gacchankoData.teianCount],
+      ['契約容量', _gacchankoData.yoyoCapacity],
+      ['計器番号', _gacchankoData.keikiNo],
+      ['地点番号：動力', _gacchankoData.chitenDoryoku],
+      ['地点番号：電灯', _gacchankoData.chitenDento],
+      ['設置先住所', _gacchankoData.kojiAddr],
+      ['設置先連絡', _gacchankoData.setchiContact],
+      ['新品・中古', _gacchankoData.shinchu],
+    ];
+
+    var html = '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:4px 16px;">';
+    previewItems.forEach(function(item) {
+      if (item[1]) {
+        html += '<div style="display:flex;gap:6px;padding:3px 0;border-bottom:1px solid var(--border);">'
+          + '<span style="font-weight:600;min-width:100px;color:var(--text2);">'+item[0]+'</span>'
+          + '<span style="color:var(--text);">'+item[1]+'</span></div>';
+      }
+    });
+    html += '</div>';
+
+    document.getElementById('gc-preview-body').innerHTML = html;
+    document.getElementById('gc-preview').style.display = '';
+    document.getElementById('gc-apply-btn').disabled = false;
+  }
+}
+
+function applyGacchanko() {
+  if (!_gacchankoData) return;
+  closeGacchankoModal();
+
+  // 新規案件モーダルを開く
+  editingAnkenId = null;
+  document.getElementById('modal-title').textContent = '新規案件登録（コピペ取込）';
+  document.getElementById('modal-body-content').innerHTML = buildForm('工事', null);
+  document.getElementById('anken-modal').classList.add('open');
+
+  // フォームに値を反映（少し遅延して確実にDOMが描画されてから）
+  setTimeout(function() {
+    var d = _gacchankoData;
+    var fieldMap = {
+      'f-kokyaku': d.kokyaku,
+      'f-kokyaku-kana': d.kokyakuKana,
+      'f-rep': d.rep,
+      'f-rep-kana': d.repKana,
+      'f-tel': d.tel,
+      'f-gyoshu': d.gyoshu,
+      'f-birthday': d.birthday,
+      'f-zip': d.zip,
+      'f-addr1': d.addr1,
+      'f-addr2': d.addr2,
+      'f-juchu-date': d.juchuDate,
+      'f-tsuki': d.tsuki,
+      'f-price': d.price,
+      'f-period': d.period,
+      'f-monthly': d.monthly,
+      'f-teian-count': d.teianCount,
+      'f-koji-count': d.teianCount,
+      'f-yoyo': d.yoyoCapacity,
+      'f-keiki-no': d.keikiNo,
+      'f-chiten-doryoku': d.chitenDoryoku,
+      'f-chiten-dento': d.chitenDento || '',
+      'f-koji-addr': d.kojiAddr,
+      'f-setchi-contact': d.setchiContact,
+      'f-shinchu': d.shinchu,
+    };
+
+    Object.keys(fieldMap).forEach(function(id) {
+      var val = fieldMap[id];
+      if (!val) return;
+      var el = document.getElementById(id);
+      if (!el) return;
+      if (el.tagName === 'SELECT') {
+        // selectの場合、一致するoptionがあればセット
+        for (var i = 0; i < el.options.length; i++) {
+          if (el.options[i].value === val) { el.value = val; break; }
+        }
+      } else {
+        el.value = val;
+      }
+    });
+
+    // アコーディオンを開く（値が入ったセクション）
+    var sections = ['sec-kokyaku', 'sec-denki', 'sec-setchi', 'sec-koji', 'sec-cost'];
+    sections.forEach(function(secKey) {
+      var secEl = document.querySelector('[onclick*="toggleAcc"]');
+      // 全セクションを開く
+    });
+    document.querySelectorAll('.acc-header:not(.open)').forEach(function(h) {
+      h.click();
+    });
+
+  }, 200);
 }
 
 // ===== 案件CRUD =====
