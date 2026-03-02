@@ -1,0 +1,2284 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>新電力管理 - POWER MGR</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+  if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+</script>
+<style>
+:root {
+  --bg: #ffffff; --bg2: #f5f7fa; --bg3: #e8ecf2;
+  --text: #1a2233; --text2: #4a5568; --text3: #8896a6;
+  --accent: #2563eb; --accent2: #1d4ed8;
+  --green: #16a34a; --red: #ef4444; --orange: #f59e0b; --purple: #7c3aed;
+  --border: #e2e8f0;
+  --sidebar: #0f172a; --sidebar-text: #cbd5e1; --sidebar-active: #2563eb;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: 'Segoe UI','Hiragino Sans',sans-serif; background:var(--bg2); color:var(--text); margin:0; min-height:100vh; }
+#app-screen { display:none; width:100%; min-height:100vh; }
+#app-screen.show { display:flex; }
+
+/* Sidebar */
+.sidebar { width:240px; background:var(--sidebar); color:var(--sidebar-text); display:flex; flex-direction:column; position:fixed; top:0; left:0; bottom:0; z-index:100; }
+.sidebar-logo { padding:20px; border-bottom:1px solid rgba(255,255,255,.08); }
+.sidebar-logo .brand { font-size:10px; font-weight:700; color:#f59e0b; letter-spacing:2px; }
+.sidebar-logo .title { font-size:18px; font-weight:800; color:#fff; margin-top:2px; }
+.sidebar-logo .ver { font-size:11px; color:var(--sidebar-text); }
+.sidebar-nav { flex:1; padding:16px 0; }
+.sidebar-label { font-size:10px; font-weight:700; letter-spacing:1.5px; color:rgba(255,255,255,.3); padding:12px 20px 6px; }
+.nav-item { display:flex; align-items:center; gap:10px; padding:10px 20px; font-size:13px; cursor:pointer; border-left:3px solid transparent; transition:all .15s; }
+.nav-item:hover { background:rgba(255,255,255,.05); color:#fff; }
+.nav-item.active { background:rgba(37,99,235,.15); color:#fff; border-left-color:var(--accent); font-weight:600; }
+.sidebar-footer { padding:16px 20px; border-top:1px solid rgba(255,255,255,.08); font-size:11px; }
+
+/* Main */
+.main { margin-left:240px; flex:1; min-height:100vh; max-width:calc(100vw - 240px); overflow-x:hidden; }
+.page-header { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; background:#fff; border-bottom:1px solid var(--border); flex-wrap:nowrap; gap:8px; }
+.page-title { font-size:18px; font-weight:800; white-space:nowrap; }
+.page-title span { color:var(--accent); }
+.header-actions { display:flex; gap:8px; align-items:center; flex-shrink:0; }
+
+/* Buttons */
+.btn { padding:7px 14px; border:1px solid var(--border); border-radius:8px; font-size:11px; font-weight:600; font-family:inherit; cursor:pointer; background:#fff; color:var(--text); transition:all .15s; white-space:nowrap; }
+.btn:hover { background:var(--bg2); }
+.btn-primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+.btn-primary:hover { background:var(--accent2); }
+.btn-sm { padding:5px 10px; font-size:10px; }
+.btn-ghost { background:transparent; border:1px solid var(--border); }
+
+/* Cards */
+.dash-card { background:#fff; border:1px solid var(--border); border-radius:12px; padding:20px 24px; margin-bottom:16px; }
+.dash-card-title { font-size:14px; font-weight:700; margin-bottom:14px; }
+
+/* Summary */
+.summary-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin-bottom:16px; }
+.summary-item { background:#fff; border:1px solid var(--border); border-radius:10px; padding:16px; border-top:3px solid var(--accent); }
+.summary-label { font-size:11px; color:var(--text3); }
+.summary-value { font-size:24px; font-weight:800; margin-top:4px; }
+.summary-sub { font-size:11px; color:var(--text3); margin-top:2px; }
+
+/* Table */
+.data-table { width:100%; border-collapse:collapse; font-size:11px; table-layout:auto; }
+.data-table thead th { padding:5px 8px; text-align:left; font-size:10px; color:var(--text3); font-weight:600; border-bottom:2px solid var(--border); background:var(--bg2); white-space:nowrap; position:sticky; top:0; }
+.data-table tbody tr { border-bottom:1px solid var(--border); cursor:pointer; transition:background .1s; }
+.data-table tbody tr:hover { background:var(--bg2); }
+.data-table td { padding:5px 8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:200px; }
+.td-amount { text-align:right; font-variant-numeric:tabular-nums; max-width:none; }
+.td-date { white-space:nowrap; font-size:10px; color:var(--text2); max-width:none; }
+.td-main { font-weight:600; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* Badge */
+.badge { padding:2px 8px; border-radius:20px; font-size:9px; font-weight:700; display:inline-block; white-space:nowrap; }
+.badge-green { background:#dcfce7; color:#166534; }
+.badge-blue { background:#dbeafe; color:#1e40af; }
+.badge-yellow { background:#fef9c3; color:#854d0e; }
+.badge-red { background:#fee2e2; color:#991b1b; }
+.badge-gray { background:#f1f5f9; color:#475569; }
+.badge-purple { background:#f3e8ff; color:#6b21a8; }
+
+/* Modal */
+.modal-overlay { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.4); z-index:1000; justify-content:center; align-items:flex-start; padding-top:60px; }
+.modal-overlay.show { display:flex; }
+.modal { background:#fff; border-radius:14px; width:90%; max-width:800px; max-height:80vh; overflow-y:auto; padding:24px; box-shadow:0 20px 60px rgba(0,0,0,.2); }
+.modal-title { font-size:16px; font-weight:800; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center; }
+.close-btn { background:none; border:none; font-size:18px; cursor:pointer; color:var(--text3); padding:4px 8px; }
+
+/* Form */
+.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.form-group { display:flex; flex-direction:column; gap:4px; }
+.form-group label { font-size:11px; font-weight:600; color:var(--text3); }
+.form-group input, .form-group select, .form-group textarea { padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:13px; font-family:inherit; background:var(--bg); color:var(--text); }
+.form-full { grid-column:1/-1; }
+
+/* Filter bar */
+.filter-bar { display:flex; gap:8px; align-items:center; padding:12px 0; flex-wrap:wrap; }
+.filter-bar input, .filter-bar select { padding:7px 10px; border:1px solid var(--border); border-radius:8px; font-size:12px; font-family:inherit; background:#fff; }
+
+/* Tabs */
+.tab-bar { display:flex; gap:0; border-bottom:2px solid var(--border); margin-bottom:16px; }
+.tab-item { padding:10px 20px; font-size:13px; font-weight:600; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-2px; color:var(--text3); transition:all .15s; }
+.tab-item:hover { color:var(--text); }
+.tab-item.active { color:var(--accent); border-bottom-color:var(--accent); }
+
+/* Import section */
+.import-zone { border:2px dashed var(--border); border-radius:12px; padding:40px; text-align:center; cursor:pointer; transition:all .2s; }
+.import-zone:hover, .import-zone.dragover { border-color:var(--accent); background:#eff6ff; }
+.import-zone .icon { font-size:32px; margin-bottom:8px; }
+.import-zone .label { font-size:13px; color:var(--text2); }
+
+/* Toast */
+.toast { position:fixed; bottom:20px; right:20px; background:#1e293b; color:#fff; padding:12px 20px; border-radius:10px; font-size:13px; font-weight:600; z-index:9999; display:none; box-shadow:0 8px 30px rgba(0,0,0,.2); }
+
+/* Login */
+.login-wrap { display:flex; align-items:center; justify-content:center; min-height:100vh; background:linear-gradient(135deg,#0f172a,#1e293b); }
+.login-box { background:rgba(255,255,255,.05); backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,.1); border-radius:20px; padding:40px; width:380px; }
+.login-title { font-size:24px; font-weight:800; color:#fff; text-align:center; }
+.login-sub { text-align:center; color:rgba(255,255,255,.5); font-size:12px; margin-bottom:24px; }
+.login-input { width:100%; padding:12px 16px; border:1px solid rgba(255,255,255,.15); border-radius:10px; font-size:14px; font-family:inherit; background:rgba(255,255,255,.05); color:#fff; margin-bottom:12px; }
+.login-input::placeholder { color:rgba(255,255,255,.3); }
+.login-btn { width:100%; padding:12px; border:none; border-radius:10px; font-size:15px; font-weight:700; font-family:inherit; background:var(--accent); color:#fff; cursor:pointer; margin-top:8px; }
+.login-error { color:#ef4444; font-size:12px; text-align:center; display:none; margin-top:8px; }
+
+/* Print */
+@media print {
+  .sidebar, .page-header, .filter-bar, .btn, .nav-item { display:none !important; }
+  .main { margin-left:0 !important; }
+}
+@media (max-width:768px) {
+  .sidebar { display:none; }
+  .main { margin-left:0; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===== ログイン画面 ===== -->
+<div id="login-screen" class="login-wrap">
+  <div class="login-box">
+    <div class="login-title" style="color:#f59e0b;">⚡ POWER MGR</div>
+    <div class="login-sub">新電力管理ポータル</div>
+    <div style="font-size:16px;font-weight:700;color:#fff;margin-bottom:4px;">ログイン</div>
+    <div style="font-size:11px;color:rgba(255,255,255,.4);margin-bottom:16px;">ユーザー名とパスワードでログインしてください</div>
+    <input type="text" id="login-user" class="login-input" placeholder="ユーザー名" autofocus>
+    <input type="password" id="login-pass" class="login-input" placeholder="パスワード">
+    <button class="login-btn" onclick="doLogin()">ログイン</button>
+    <div id="login-error" class="login-error">ユーザー名またはパスワードが違います</div>
+  </div>
+</div>
+
+<!-- ===== メイン画面 ===== -->
+<div id="app-screen">
+
+<!-- Sidebar -->
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div class="brand">新電力管理</div>
+    <div class="title">POWER MGR</div>
+    <div class="ver">v1.0</div>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="sidebar-label">メニュー</div>
+    <div class="nav-item active" onclick="showPage('page-dashboard')">📊 ダッシュボード</div>
+    <div class="nav-item" onclick="showPage('page-master')">📋 案件一覧</div>
+    <div class="nav-item" onclick="showPage('page-monthly')">💰 月次手数料</div>
+    <div class="nav-item" onclick="showPage('page-import')">📥 データ取り込み</div>
+    <div class="nav-item" onclick="showPage('page-master-import')">📤 案件マスタ取込</div>
+    <div class="nav-item" onclick="showPage('page-dairi-pay')">🏢 代理店支払</div>
+  </nav>
+  <div class="sidebar-footer">
+    <div id="user-info" style="font-weight:600;color:#fff;"></div>
+    <div style="cursor:pointer;margin-top:6px;color:var(--sidebar-text);" onclick="doLogout()">ログアウト</div>
+  </div>
+</div>
+
+<div class="main">
+
+<!-- ===== ダッシュボード ===== -->
+<div id="page-dashboard">
+  <div class="page-header">
+    <div class="page-title">📊 ダッシュ<span>ボード</span></div>
+    <div class="header-actions">
+      <input type="month" id="dash-month" onchange="renderDashboard()" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;">
+    </div>
+  </div>
+  <div style="padding:20px 28px;" id="dashboard-content"></div>
+</div>
+
+<!-- ===== 案件一覧 ===== -->
+<div id="page-master" style="display:none;">
+  <div class="page-header">
+    <div class="page-title">📋 案件<span>一覧</span></div>
+    <div class="header-actions">
+      <button class="btn btn-primary btn-sm" onclick="openMasterModal()">＋ 新規案件</button>
+    </div>
+  </div>
+  <div style="padding:20px 28px;">
+    <div class="filter-bar">
+      <input type="text" id="master-search" placeholder="🔍 顧客名・代理店名で検索..." oninput="renderMasterTable()" style="flex:1;min-width:200px;">
+      <select id="master-company-filter" onchange="renderMasterTable()">
+        <option value="">すべての電力会社</option>
+      </select>
+      <select id="master-status-filter" onchange="renderMasterTable()">
+        <option value="">すべての進捗</option>
+        <option value="契約中">契約中</option>
+        <option value="申込中">申込中</option>
+        <option value="解約">解約</option>
+      </select>
+    </div>
+    <div class="dash-card" style="padding:0;overflow-x:auto;">
+      <table class="data-table">
+        <thead><tr id="master-thead"></tr></thead>
+        <tbody id="master-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 月次手数料 ===== -->
+<div id="page-monthly" style="display:none;">
+  <div class="page-header">
+    <div class="page-title">💰 月次<span>手数料</span></div>
+    <div class="header-actions" style="display:flex;gap:8px;align-items:center;">
+      <button class="btn btn-ghost btn-sm" id="btn-meisai-pdf" onclick="generateMeisaiPDF()" style="display:none;">🖨️ 支払明細書</button>
+      <input type="month" id="monthly-month" onchange="renderMonthlyTable()" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;">
+    </div>
+  </div>
+  <div style="padding:20px 28px;">
+    <div id="monthly-summary"></div>
+    <div class="filter-bar">
+      <input type="text" id="monthly-search" placeholder="🔍 顧客名で検索..." oninput="renderMonthlyTable()" style="flex:1;min-width:200px;">
+      <select id="monthly-company-filter" onchange="renderMonthlyTable()">
+        <option value="">すべての電力会社</option>
+      </select>
+    </div>
+    <div class="dash-card" style="padding:0;overflow-x:auto;">
+      <table class="data-table">
+        <thead><tr id="monthly-thead"></tr></thead>
+        <tbody id="monthly-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ===== データ取り込み ===== -->
+<div id="page-import" style="display:none;">
+  <div class="page-header">
+    <div class="page-title">📥 データ<span>取り込み</span></div>
+  </div>
+  <div style="padding:20px 28px;">
+    <div class="dash-card">
+      <div class="dash-card-title">電力会社を選択してPDF/Excelをアップロード</div>
+      <div class="tab-bar" id="import-tabs">
+        <div class="tab-item active" onclick="selectImportCo('SMES')">SMES</div>
+        <div class="tab-item" onclick="selectImportCo('テラス')">テラス</div>
+        <div class="tab-item" onclick="selectImportCo('親指')">親指でんき</div>
+        <div class="tab-item" onclick="selectImportCo('高圧')">アイエステクノ</div>
+      </div>
+      <div style="display:flex;gap:12px;margin-bottom:16px;align-items:center;">
+        <div class="form-group">
+          <label>取り込み月</label>
+          <input type="month" id="import-month" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+        </div>
+        <div class="form-group" id="import-type-wrap">
+          <label>ファイル形式</label>
+          <select id="import-type" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+            <option value="excel">Excel (.xlsx)</option>
+            <option value="pdf">PDF</option>
+          </select>
+        </div>
+      </div>
+      <div class="import-zone" id="import-zone" onclick="document.getElementById('import-file').click()">
+        <div class="icon">📄</div>
+        <div class="label">クリックまたはドラッグ＆ドロップでファイルをアップロード</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;" id="import-file-name"></div>
+      </div>
+      <input type="file" id="import-file" accept=".xlsx,.xls,.pdf,.csv" style="display:none;" onchange="handleFileSelect(event)">
+      <div style="margin-top:12px;text-align:right;">
+        <button class="btn btn-primary" onclick="parseImportFile()" id="parse-btn" disabled>📊 解析する</button>
+      </div>
+    </div>
+
+    <!-- プレビュー -->
+    <div class="dash-card" id="import-preview" style="display:none;">
+      <div class="dash-card-title">📋 取り込みプレビュー（<span id="preview-count">0</span>件）</div>
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead><tr id="preview-thead"></tr></thead>
+          <tbody id="preview-tbody"></tbody>
+        </table>
+      </div>
+      <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn btn-ghost" onclick="cancelImport()">キャンセル</button>
+        <button class="btn btn-primary" onclick="confirmImport()">✅ 保存する</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 案件マスタ取込 ===== -->
+<div id="page-master-import" style="display:none;">
+  <div class="page-header">
+    <div class="page-title">📤 案件マスタ<span>取込</span></div>
+  </div>
+  <div style="padding:20px 28px;">
+    <div class="dash-card">
+      <div class="dash-card-title">既存の案件管理スプレッドシート / Excelから案件マスタを一括取込</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:16px;line-height:1.6;">
+        現在の案件管理スプシ（Googleフォーム連携）のデータを取り込みます。<br>
+        スプシまたはExcelファイル(.xlsx)をそのままアップロードしてください。<br>
+        <strong>自動マッピング列：</strong> 代理店番号, 代理店名, 申込希望の電力会社, 顧客名, 供給地点番号, 契約種別, 手数料%, 進捗 等
+      </div>
+      <div style="display:flex;gap:12px;margin-bottom:16px;align-items:flex-end;flex-wrap:wrap;">
+        <div class="form-group">
+          <label>ヘッダー行の位置</label>
+          <select id="mi-header-row" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+            <option value="auto">自動検出</option>
+            <option value="0">1行目</option>
+            <option value="1">2行目</option>
+            <option value="2">3行目</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>重複チェック</label>
+          <select id="mi-dup-check" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+            <option value="skip">重複スキップ（顧客名+代理店番号）</option>
+            <option value="overwrite">上書き</option>
+            <option value="all">すべて取込</option>
+          </select>
+        </div>
+      </div>
+      <div class="import-zone" id="mi-zone" onclick="document.getElementById('mi-file').click()">
+        <div class="icon">📋</div>
+        <div class="label">クリックまたはドラッグ＆ドロップでExcel/CSVをアップロード</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;" id="mi-file-name"></div>
+      </div>
+      <input type="file" id="mi-file" accept=".xlsx,.xls,.csv" style="display:none;" onchange="handleMiFileSelect(event)">
+      <div style="margin-top:12px;text-align:right;">
+        <button class="btn btn-primary" onclick="parseMasterImport()" id="mi-parse-btn" disabled>📊 解析する</button>
+      </div>
+    </div>
+
+    <!-- マッピング確認 -->
+    <div class="dash-card" id="mi-mapping" style="display:none;">
+      <div class="dash-card-title">🔗 列マッピング確認</div>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:12px;">自動検出されたマッピングです。必要に応じてプルダウンを変更してください。</div>
+      <div class="form-grid" id="mi-mapping-grid"></div>
+      <div style="margin-top:16px;text-align:right;">
+        <button class="btn btn-primary" onclick="applyMasterMapping()">✅ このマッピングで取込プレビュー</button>
+      </div>
+    </div>
+
+    <!-- プレビュー -->
+    <div class="dash-card" id="mi-preview" style="display:none;">
+      <div class="dash-card-title">📋 取込プレビュー（<span id="mi-preview-count">0</span>件）
+        <span id="mi-dup-info" style="font-size:11px;font-weight:400;color:var(--text3);margin-left:12px;"></span>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead><tr id="mi-preview-thead"></tr></thead>
+          <tbody id="mi-preview-tbody"></tbody>
+        </table>
+      </div>
+      <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn btn-ghost" onclick="cancelMasterImport()">キャンセル</button>
+        <button class="btn btn-primary" onclick="confirmMasterImport()">💾 案件マスタに保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 代理店支払 ===== -->
+<div id="page-dairi-pay" style="display:none;">
+  <div class="page-header">
+    <div class="page-title">🏢 代理店<span>支払</span></div>
+    <div class="header-actions">
+      <input type="month" id="dairi-pay-month" onchange="renderDairiPay()" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;">
+      <button class="btn btn-ghost btn-sm" onclick="printDairiPay()">🖨 印刷</button>
+    </div>
+  </div>
+  <div style="padding:20px 28px;">
+    <div class="filter-bar">
+      <select id="dairi-pay-filter" onchange="renderDairiPay()" style="min-width:200px;">
+        <option value="">すべての代理店</option>
+      </select>
+    </div>
+    <div id="dairi-pay-content"></div>
+  </div>
+</div>
+
+</div><!-- /main -->
+</div><!-- /app-screen -->
+
+<!-- 案件モーダル -->
+<div class="modal-overlay" id="master-modal">
+  <div class="modal">
+    <div class="modal-title">
+      <span id="modal-title-text">新規案件</span>
+      <button class="close-btn" onclick="closeMasterModal()">✕</button>
+    </div>
+    <div class="form-grid" id="master-form"></div>
+    <div style="margin-top:16px;display:flex;justify-content:space-between;align-items:center;">
+      <button class="btn btn-ghost btn-sm" id="copy-master-btn" onclick="copyMaster()" style="display:none;">📋 コピーして新規</button>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost" onclick="closeMasterModal()">キャンセル</button>
+        <button class="btn btn-primary" id="save-master-btn" onclick="saveMaster()">💾 保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// Config
+// ============================================================
+var API_URL = 'https://script.google.com/macros/s/AKfycbyRqDZVanxjCZ76GEuhCR8t8FTZvLiyG7qQK_Xn52NqVVYwA56kSjqwwLOYVa3N6ASu/exec';
+var authToken = null;
+var currentUser = null;
+var masterList = [];
+var monthlyList = [];
+var powerSettings = {};
+var _importCo = 'SMES';
+var _importData = [];
+
+// ============================================================
+// Toast
+// ============================================================
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg; t.style.display = 'block';
+  setTimeout(function(){ t.style.display = 'none'; }, 3000);
+}
+
+// ============================================================
+// API
+// ============================================================
+async function apiCall(action, extra) {
+  var body = Object.assign({ action: action, token: authToken }, extra || {});
+  var res = await fetch(API_URL, { method:'POST', body:JSON.stringify(body) });
+  return await res.json();
+}
+
+// ============================================================
+// Login
+// ============================================================
+async function doLogin() {
+  var user = document.getElementById('login-user').value.trim();
+  var pass = document.getElementById('login-pass').value;
+  if (!user || !pass) return;
+  try {
+    var res = await apiCall('login', { username: user, password: pass });
+    if (res.ok) {
+      authToken = res.token;
+      currentUser = res.user;
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('app-screen').classList.add('show');
+      document.getElementById('user-info').textContent = (currentUser.tantoName || currentUser.username) + ' (' + currentUser.role + ')';
+      // 代理店の場合、管理者メニューを非表示
+      var isDairi = currentUser.role === 'dairi' || currentUser.role === 'powerDairi';
+      var isManager = currentUser.role === 'manager';
+      document.querySelectorAll('.nav-item').forEach(function(n) {
+        var text = n.textContent;
+        // 代理店: ダッシュボード・データ取り込み・代理店支払・案件マスタ取込を非表示
+        if (isDairi && (text.includes('データ取り込み') || text.includes('代理店支払') || text.includes('案件マスタ取込') || text.includes('ダッシュボード'))) {
+          n.style.display = 'none';
+        }
+        // manager: 案件マスタ取込・代理店支払を非表示
+        if (isManager && (text.includes('案件マスタ取込') || text.includes('代理店支払'))) {
+          n.style.display = 'none';
+        }
+      });
+      await loadData();
+      // 代理店は案件一覧をデフォルト表示
+      if (isDairi) showPage('page-master');
+    } else {
+      var err = document.getElementById('login-error');
+      err.textContent = res.error || 'ログインエラー';
+      err.style.display = 'block';
+    }
+  } catch(e) {
+    document.getElementById('login-error').style.display = 'block';
+  }
+}
+document.getElementById('login-pass').addEventListener('keydown', function(e) { if(e.key==='Enter') doLogin(); });
+
+function doLogout() {
+  authToken = null; currentUser = null;
+  document.getElementById('app-screen').classList.remove('show');
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+// ============================================================
+// Data Loading
+// ============================================================
+async function loadData() {
+  showToast('⏳ データ読み込み中...');
+  try {
+    var [mRes, moRes] = await Promise.all([
+      apiCall('getPowerMaster'),
+      apiCall('getPowerMonthly')
+    ]);
+    if (mRes.ok) masterList = mRes.data || [];
+    if (moRes.ok) monthlyList = moRes.data || [];
+
+    // 日付型フィールドをYYYY-MM形式に正規化（GASが日付型として返す場合の対策）
+    monthlyList.forEach(function(m) {
+      ['importMonth','dataMonth'].forEach(function(k) {
+        var v = m[k];
+        if (!v) return;
+        var s = String(v);
+        // ISO日付文字列の場合（例: "2025-12-31T15:00:00.000Z" = UTC）
+        if (s.includes('T')) {
+          var d = new Date(s);
+          // 日本時間に補正（UTC+9）
+          d.setHours(d.getHours() + 9);
+          m[k] = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+        } else {
+          // "2026-01" や "2026-01-01" 等
+          var match = s.match(/(\d{4})-(\d{1,2})/);
+          if (match) m[k] = match[1] + '-' + String(Number(match[2])).padStart(2,'0');
+        }
+      });
+    });
+
+    console.log('masterList:', masterList.length, '件');
+    console.log('monthlyList:', monthlyList.length, '件');
+    if (monthlyList.length > 0) console.log('monthlyList[0].importMonth:', monthlyList[0].importMonth);
+
+    // 電力会社フィルター更新
+    updateCompanyFilters();
+    updateDairiFilter();
+
+    // デフォルト月
+    var now = new Date();
+    var defMonth = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+    ['dash-month','monthly-month','import-month','dairi-pay-month'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el && !el.value) el.value = defMonth;
+    });
+
+    renderDashboard();
+    showToast('✅ 読み込み完了');
+  } catch(e) {
+    showToast('❌ データ読み込みエラー');
+    console.error(e);
+  }
+}
+
+function updateCompanyFilters() {
+  var companies = {};
+  masterList.forEach(function(m) { if(m.powerCompany) companies[m.powerCompany] = true; });
+  monthlyList.forEach(function(m) { if(m.powerCompany) companies[m.powerCompany] = true; });
+  var opts = '<option value="">すべての電力会社</option>' + Object.keys(companies).map(function(c) { return '<option value="'+c+'">'+c+'</option>'; }).join('');
+  ['master-company-filter','monthly-company-filter'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if(el) el.innerHTML = opts;
+  });
+}
+
+function updateDairiFilter() {
+  var dairis = {};
+  masterList.forEach(function(m) { if(m.dairiNo) dairis[m.dairiNo] = m.dairiName || m.dairiNo; });
+  monthlyList.forEach(function(m) { if(m.dairiNo) dairis[m.dairiNo] = m.dairiName || m.dairiNo; });
+  var el = document.getElementById('dairi-pay-filter');
+  if(el) {
+    el.innerHTML = '<option value="">すべての代理店</option>' + Object.keys(dairis).map(function(k) { return '<option value="'+k+'">'+k+' '+dairis[k]+'</option>'; }).join('');
+  }
+}
+
+// ============================================================
+// Navigation
+// ============================================================
+function showPage(pageId) {
+  document.querySelectorAll('.main > div[id^="page-"]').forEach(function(p) { p.style.display = 'none'; });
+  document.getElementById(pageId).style.display = '';
+  document.querySelectorAll('.nav-item').forEach(function(n) { n.classList.remove('active'); });
+  event.target.classList.add('active');
+
+  if(pageId === 'page-dashboard') renderDashboard();
+  if(pageId === 'page-master') renderMasterTable();
+  if(pageId === 'page-monthly') renderMonthlyTable();
+  if(pageId === 'page-dairi-pay') renderDairiPay();
+}
+
+// ============================================================
+// Helpers
+// ============================================================
+function fmtYen(n) { var v = Math.round(Number(n)||0); return v ? '¥'+v.toLocaleString() : '-'; }
+function fmtDate(d) { return d ? String(d).substring(0,10) : '-'; }
+function isDairiUser() { return currentUser && (currentUser.role === 'dairi' || currentUser.role === 'powerDairi'); }
+function isManagerUser() { return currentUser && currentUser.role === 'manager'; }
+function isAdminUser() { return currentUser && currentUser.role === 'admin'; }
+
+function companyBadge(co) {
+  var colors = {'SMES':'badge-blue','テラス':'badge-green','親指':'badge-purple','高圧':'badge-yellow'};
+  var display = co === '高圧' ? 'アイエステクノ' : co;
+  return '<span class="badge '+(colors[co]||'badge-gray')+'">'+(display||'-')+'</span>';
+}
+
+function statusBadge(st) {
+  var colors = {'契約中':'badge-green','申込中':'badge-blue','解約':'badge-red'};
+  return '<span class="badge '+(colors[st]||'badge-gray')+'">'+(st||'-')+'</span>';
+}
+
+// ============================================================
+// Dashboard
+// ============================================================
+function renderDashboard() {
+  var ym = document.getElementById('dash-month').value;
+  if (!ym) return;
+
+  var monthData = monthlyList.filter(function(m) { return String(m.importMonth||'').substring(0,7) === ym; });
+  var totalCommission = monthData.reduce(function(s,m) { return s + (Number(m.commission)||0); }, 0);
+  var totalDairiShare = monthData.reduce(function(s,m) { return s + (Number(m.dairiShare)||0); }, 0);
+  var totalCases = monthData.length;
+  var netProfit = totalCommission - totalDairiShare;
+
+  // 電力会社別集計
+  var byCo = {};
+  monthData.forEach(function(m) {
+    var co = m.powerCompany || 'その他';
+    if(!byCo[co]) byCo[co] = {count:0, commission:0, dairiShare:0};
+    byCo[co].count++;
+    byCo[co].commission += Number(m.commission)||0;
+    byCo[co].dairiShare += Number(m.dairiShare)||0;
+  });
+
+  var wrap = document.getElementById('dashboard-content');
+  var _d = isDairiUser();
+  if (_d) {
+    // 代理店用ダッシュボード
+    wrap.innerHTML = '<div class="summary-grid">'
+      + '<div class="summary-item" style="border-top-color:var(--purple);"><div class="summary-label">'+ym.replace('-','年')+'月 手数料合計</div><div class="summary-value" style="color:var(--purple);">'+fmtYen(totalDairiShare)+'</div><div class="summary-sub">'+totalCases+'件</div></div>'
+      + '<div class="summary-item" style="border-top-color:var(--orange);"><div class="summary-label">登録案件数</div><div class="summary-value">'+masterList.length+'</div><div class="summary-sub">件</div></div>'
+      + '</div>'
+      + '<div class="dash-card"><div class="dash-card-title">⚡ 電力会社別集計</div>'
+      + '<table class="data-table"><thead><tr><th>電力会社</th><th style="text-align:right;">件数</th><th style="text-align:right;">手数料</th></tr></thead><tbody>'
+      + Object.keys(byCo).map(function(co) {
+        var d = byCo[co];
+        return '<tr><td>'+companyBadge(co)+'</td><td class="td-amount">'+d.count+'件</td><td class="td-amount" style="color:var(--purple);">'+fmtYen(d.dairiShare)+'</td></tr>';
+      }).join('')
+      + '</tbody></table></div>';
+  } else {
+    // 管理者用ダッシュボード
+    wrap.innerHTML = '<div class="summary-grid">'
+      + '<div class="summary-item" style="border-top-color:var(--accent);"><div class="summary-label">'+ym.replace('-','年')+'月 手数料合計</div><div class="summary-value" style="color:var(--accent);">'+fmtYen(totalCommission)+'</div><div class="summary-sub">'+totalCases+'件</div></div>'
+      + '<div class="summary-item" style="border-top-color:var(--purple);"><div class="summary-label">代理店手数料合計</div><div class="summary-value" style="color:var(--purple);">'+fmtYen(totalDairiShare)+'</div></div>'
+      + '<div class="summary-item" style="border-top-color:var(--green);"><div class="summary-label">純利益</div><div class="summary-value" style="color:var(--green);">'+fmtYen(netProfit)+'</div></div>'
+      + '<div class="summary-item" style="border-top-color:var(--orange);"><div class="summary-label">登録案件数</div><div class="summary-value">'+masterList.length+'</div><div class="summary-sub">件</div></div>'
+      + '</div>'
+      + '<div class="dash-card"><div class="dash-card-title">⚡ 電力会社別集計</div>'
+      + '<table class="data-table"><thead><tr><th>電力会社</th><th style="text-align:right;">件数</th><th style="text-align:right;">弊社手数料</th><th style="text-align:right;">代理店手数料</th><th style="text-align:right;">純利益</th></tr></thead><tbody>'
+      + Object.keys(byCo).map(function(co) {
+        var d = byCo[co];
+        return '<tr><td>'+companyBadge(co)+'</td><td class="td-amount">'+d.count+'件</td><td class="td-amount" style="font-weight:700;color:var(--accent);">'+fmtYen(d.commission)+'</td><td class="td-amount" style="color:var(--purple);">'+fmtYen(d.dairiShare)+'</td><td class="td-amount" style="color:var(--green);">'+fmtYen(d.commission-d.dairiShare)+'</td></tr>';
+      }).join('')
+      + '</tbody></table></div>';
+  }
+}
+
+// ============================================================
+// Master Table
+// ============================================================
+function renderMasterTable() {
+  var q = (document.getElementById('master-search').value||'').toLowerCase();
+  var coF = document.getElementById('master-company-filter').value;
+  var stF = document.getElementById('master-status-filter').value;
+
+  var filtered = masterList.filter(function(m) {
+    var matchQ = !q || (m.customerName||'').toLowerCase().includes(q) || (m.dairiName||'').toLowerCase().includes(q) || (m.dairiNo||'').toLowerCase().includes(q);
+    var matchCo = !coF || m.powerCompany === coF;
+    var matchSt = !stF || m.status === stF;
+    return matchQ && matchCo && matchSt;
+  });
+
+  var _d = isDairiUser();
+  document.getElementById('master-thead').innerHTML = '<th>進捗</th><th>受注日</th><th>代理店</th><th>電力会社</th><th>顧客名</th><th>申込者名</th><th>供給地点番号</th><th>契約種別</th><th>お支払</th><th>代理店手数料</th>'+(_d?'':'<th>電力会社→弊社%</th>');
+  document.getElementById('master-tbody').innerHTML = filtered.map(function(m) {
+    return '<tr onclick="openMasterModal('+m.id+')">'
+      + '<td>'+statusBadge(m.status)+'</td>'
+      + '<td class="td-date">'+(m.orderDate ? fmtDate(m.orderDate) : '-')+'</td>'
+      + '<td class="td-date">'+(m.dairiNo||'-')+'</td>'
+      + '<td>'+companyBadge(m.powerCompany)+'</td>'
+      + '<td class="td-main">'+(m.customerName||'-')+'</td>'
+      + '<td style="font-size:10px;">'+(m.applicantName||'-')+'</td>'
+      + '<td style="font-size:9px;font-family:monospace;">'+(m.supplyPointNo||'-')+'</td>'
+      + '<td style="font-size:10px;">'+(m.contractType||'-')+'</td>'
+      + '<td style="font-size:10px;">'+(m.payMethod||'-')+'</td>'
+      + '<td class="td-amount">'+(m.dairiFeeRate ? m.dairiFeeRate+'%' : '-')+'</td>'
+      + (_d?'':'<td class="td-amount">'+(m.companyFeeRate ? m.companyFeeRate+'%' : '-')+'</td>')
+      + '</tr>';
+  }).join('');
+}
+
+// ============================================================
+// Master Modal
+// ============================================================
+var MASTER_FIELDS = [
+  {key:'caseNo', label:'件数'},
+  {key:'status', label:'進捗', type:'select', options:['契約中','申込中','解約']},
+  {key:'orderDate', label:'受注日', type:'date'},
+  {key:'caseId', label:'ID'},
+  {key:'dairiNo', label:'代理店番号'},
+  {key:'dairiName', label:'代理店名（屋号）'},
+  {key:'dairiTanto', label:'代理店担当者名及び連絡先', full:true},
+  {key:'powerCompany', label:'申込希望の電力会社', type:'select', options:['SMES','テラス','親指','おしごとでんき','JAPN電力','その他（入力）']},
+  {key:'meidenUrl', label:'電気明細データURL', full:true},
+  {key:'bizType', label:'お申込者の区分', type:'select', options:['法人','個人']},
+  {key:'customerName', label:'顧客名（会社名・屋号）', full:true},
+  {key:'customerKana', label:'顧客名フリガナ'},
+  {key:'ceoTitle', label:'代表者の役職'},
+  {key:'applicantName', label:'申込者名（代表者名）'},
+  {key:'applicantKana', label:'申込者名フリガナ'},
+  {key:'prefecture', label:'都道府県'},
+  {key:'city', label:'市区町村'},
+  {key:'address', label:'丁目・番地'},
+  {key:'building', label:'建物名'},
+  {key:'address2', label:'住所②', full:true},
+  {key:'phone', label:'連絡先'},
+  {key:'phone2', label:'お申込み連絡先②'},
+  {key:'email', label:'メールアドレス'},
+  {key:'contractType', label:'契約種別'},
+  {key:'capacity100', label:'契約容量(100V)'},
+  {key:'capacity200', label:'契約容量(200V)'},
+  {key:'capacity6600', label:'契約容量(6600V)'},
+  {key:'recentUsage', label:'直近の使用量'},
+  {key:'payMethod', label:'お支払方法', type:'select', options:['クレジットカード','口座振替','その他']},
+  {key:'billMethod', label:'明細確認方法', type:'select', options:['ウェブ','紙（有料）','その他']},
+  {key:'currentPowerCo', label:'現在の電力会社'},
+  {key:'supplyPointNo', label:'供給地点番号', full:true},
+  {key:'contractName', label:'電気の契約名義'},
+  {key:'subTantoName', label:'担当者名（代表以外）'},
+  {key:'subTantoKana', label:'担当者名フリガナ'},
+  {key:'customerNo', label:'お客様番号'},
+  {key:'dairiFeeRate', label:'代理店手数料%（AQ列）', type:'number'},
+  {key:'companyFeeRate', label:'電力会社→弊社手数料%（AR列）', type:'number'},
+  {key:'stoooTanto', label:'Stooo担当'},
+  {key:'stoooContact', label:'Stooo担当連絡先'},
+  {key:'memo', label:'メモ・備考', full:true, type:'textarea'},
+];
+
+var _editingMasterId = null;
+function openMasterModal(id, isCopy) {
+  var _isDairi = isDairiUser();
+  var isExistingEdit = (id && !isCopy);
+
+  // 代理店・managerが既存案件を開く場合は閲覧モード
+  var isViewOnly = ((_isDairi || isManagerUser()) && isExistingEdit);
+
+  _editingMasterId = (id && !isCopy) ? id : null;
+  var data = id ? masterList.find(function(m){return m.id==id;}) || {} : {};
+  if (isCopy) {
+    document.getElementById('modal-title-text').textContent = '案件コピー（新規作成）';
+  } else if (isViewOnly) {
+    document.getElementById('modal-title-text').textContent = '案件詳細（閲覧）';
+  } else {
+    document.getElementById('modal-title-text').textContent = id ? '案件編集' : '新規案件';
+  }
+  // コピーボタンは既存案件の時のみ表示
+  var copyBtn = document.getElementById('copy-master-btn');
+  if (copyBtn) copyBtn.style.display = isExistingEdit ? '' : 'none';
+  // 保存ボタン：閲覧モードでは非表示
+  var saveBtn = document.getElementById('save-master-btn');
+  if (saveBtn) saveBtn.style.display = isViewOnly ? 'none' : '';
+
+  var html = MASTER_FIELDS.map(function(f) {
+    // 代理店には電力会社→弊社%、Stooo担当を非表示
+    if (_isDairi && (f.key === 'companyFeeRate' || f.key === 'stoooTanto' || f.key === 'stoooContact')) return '';
+    var val = data[f.key] || '';
+    var cls = f.full ? 'form-group form-full' : 'form-group';
+    var readonlyAttr = isViewOnly ? ' readonly disabled style="background:#f1f5f9;opacity:.7;"' : '';
+    if (f.type === 'textarea') {
+      return '<div class="'+cls+'"><label>'+f.label+'</label><textarea id="mf-'+f.key+'" rows="3" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:12px;resize:vertical;"'+readonlyAttr+'>'+String(val).replace(/</g,'&lt;')+'</textarea></div>';
+    }
+    if (f.type === 'select') {
+      var disabledAttr = isViewOnly ? ' disabled style="background:#f1f5f9;opacity:.7;"' : '';
+      // 「その他（入力）」対応：値が選択肢にない場合はテキスト入力
+      var isOther = (f.key === 'powerCompany' && val && f.options.indexOf(val) === -1);
+      if (isOther) {
+        return '<div class="'+cls+'"><label>'+f.label+'</label>'
+          + '<div style="display:flex;gap:4px;"><select id="mf-'+f.key+'" onchange="onSelectOther(this,\'mf-'+f.key+'-other\')"'+disabledAttr+'>'
+          + '<option value="">選択...</option>'
+          + f.options.map(function(o){ return '<option value="'+o+'">'+o+'</option>'; }).join('')
+          + '</select><input type="text" id="mf-'+f.key+'-other" value="'+String(val).replace(/"/g,'&quot;')+'" placeholder="入力..."'+readonlyAttr+' style="flex:1;"></div></div>';
+      }
+      return '<div class="'+cls+'"><label>'+f.label+'</label>'
+        + '<div style="display:flex;gap:4px;"><select id="mf-'+f.key+'" onchange="onSelectOther(this,\'mf-'+f.key+'-other\')"'+disabledAttr+'>'
+        + '<option value="">選択...</option>'
+        + f.options.map(function(o){ return '<option value="'+o+'"'+(val===o?' selected':'')+'>'+o+'</option>'; }).join('')
+        + '</select><input type="text" id="mf-'+f.key+'-other" placeholder="入力..." style="flex:1;display:'+(val && f.options.indexOf(val)===-1?'':'none')+';"'+readonlyAttr+'></div></div>';
+    }
+    var t = f.type || 'text';
+    return '<div class="'+cls+'"><label>'+f.label+'</label><input type="'+t+'" id="mf-'+f.key+'" value="'+String(val).replace(/"/g,'&quot;')+'"'+readonlyAttr+'></div>';
+  }).join('');
+  document.getElementById('master-form').innerHTML = html;
+  // 代理店ユーザーの場合、代理店番号を自動セット＋編集不可
+  if (_isDairi && !isViewOnly) {
+    var noEl = document.getElementById('mf-dairiNo');
+    if (noEl) { noEl.value = currentUser.dairiNo || ''; noEl.readOnly = true; noEl.style.background = '#f1f5f9'; }
+    var nameEl = document.getElementById('mf-dairiName');
+    if (nameEl && !nameEl.value) { nameEl.value = currentUser.tantoName || ''; }
+  }
+  document.getElementById('master-modal').classList.add('show');
+}
+
+function copyMaster() {
+  // 現在編集中の案件IDを取得してコピーモードで再オープン
+  var id = _editingMasterId;
+  if (!id) return;
+  closeMasterModal();
+  setTimeout(function() { openMasterModal(id, true); }, 100);
+}
+
+function closeMasterModal() {
+  document.getElementById('master-modal').classList.remove('show');
+}
+
+async function saveMaster() {
+  var data = {};
+  MASTER_FIELDS.forEach(function(f) {
+    var el = document.getElementById('mf-'+f.key);
+    if (!el) return;
+    if (f.type === 'select') {
+      var val = el.value;
+      // 「その他（入力）」の場合はテキスト入力値を使用
+      if (val === 'その他（入力）') {
+        var otherEl = document.getElementById('mf-'+f.key+'-other');
+        val = otherEl ? otherEl.value.trim() : '';
+      }
+      data[f.key] = val;
+    } else if (f.type === 'textarea') {
+      data[f.key] = el.value;
+    } else {
+      data[f.key] = el.value;
+    }
+  });
+  if (_editingMasterId) data.id = _editingMasterId;
+  try {
+    var res = await apiCall('savePowerMaster', {data:data});
+    if(res.ok) {
+      showToast('✅ 保存しました');
+      closeMasterModal();
+      await loadData();
+      renderMasterTable();
+    } else {
+      showToast('❌ ' + (res.error||'保存エラー'));
+    }
+  } catch(e) { showToast('❌ 通信エラー'); }
+}
+
+// selectで「その他（入力）」選択時にテキスト入力を表示
+function onSelectOther(sel, otherId) {
+  var otherEl = document.getElementById(otherId);
+  if (!otherEl) return;
+  if (sel.value === 'その他（入力）') {
+    otherEl.style.display = '';
+    otherEl.focus();
+  } else {
+    otherEl.style.display = 'none';
+    otherEl.value = '';
+  }
+}
+
+// ============================================================
+// Monthly Table
+// ============================================================
+function renderMonthlyTable() {
+  var ym = document.getElementById('monthly-month').value;
+  var q = (document.getElementById('monthly-search').value||'').toLowerCase();
+  var coF = document.getElementById('monthly-company-filter').value;
+
+  var filtered = monthlyList.filter(function(m) {
+    var matchYm = !ym || String(m.importMonth||'').substring(0,7) === ym;
+    var matchQ = !q || (m.customerName||'').toLowerCase().includes(q);
+    var matchCo = !coF || m.powerCompany === coF;
+    return matchYm && matchQ && matchCo;
+  });
+
+  // サマリー
+  var total = filtered.reduce(function(s,m){return s+(Number(m.commission)||0);}, 0);
+  var totalDairi = filtered.reduce(function(s,m){return s+(Number(m.dairiShare)||0);}, 0);
+  var _d = isDairiUser();
+  if (_d) {
+    document.getElementById('monthly-summary').innerHTML = '<div class="summary-grid">'
+      + '<div class="summary-item" style="border-top-color:var(--purple);"><div class="summary-label">手数料合計</div><div class="summary-value" style="color:var(--purple);">'+fmtYen(totalDairi)+'</div><div class="summary-sub">'+filtered.length+'件</div></div>'
+      + '</div>';
+  } else {
+    document.getElementById('monthly-summary').innerHTML = '<div class="summary-grid">'
+      + '<div class="summary-item" style="border-top-color:var(--accent);"><div class="summary-label">弊社手数料合計</div><div class="summary-value" style="color:var(--accent);">'+fmtYen(total)+'</div><div class="summary-sub">'+filtered.length+'件</div></div>'
+      + '<div class="summary-item" style="border-top-color:var(--purple);"><div class="summary-label">代理店手数料合計</div><div class="summary-value" style="color:var(--purple);">'+fmtYen(totalDairi)+'</div></div>'
+      + '<div class="summary-item" style="border-top-color:var(--green);"><div class="summary-label">純利益</div><div class="summary-value" style="color:var(--green);">'+fmtYen(total-totalDairi)+'</div></div>'
+      + '</div>';
+  }
+
+  document.getElementById('monthly-thead').innerHTML = '<th>対象月</th><th>電力会社</th>'+(_d?'':'<th>代理店</th>')+'<th>顧客名</th><th>料金メニュー</th><th style="text-align:right;">使用量</th><th style="text-align:right;">請求金額</th><th style="text-align:right;">対象金額</th>'+(_d?'':'<th style="text-align:right;">弊社手数料</th>')+'<th style="text-align:right;">代理店手数料</th>';
+  document.getElementById('monthly-tbody').innerHTML = filtered.map(function(m) {
+    return '<tr>'
+      + '<td class="td-date">'+(m.dataMonth||'-')+'</td>'
+      + '<td>'+companyBadge(m.powerCompany)+'</td>'
+      + (_d?'':'<td class="td-date">'+(m.dairiNo||'-')+'</td>')
+      + '<td class="td-main">'+(m.customerName||'-')+'</td>'
+      + '<td style="font-size:10px;">'+(m.planName||'-')+'</td>'
+      + '<td class="td-amount">'+(m.usage||'-')+'</td>'
+      + '<td class="td-amount">'+fmtYen(m.billingAmount)+'</td>'
+      + '<td class="td-amount">'+fmtYen(m.targetAmount)+'</td>'
+      + (_d?'':'<td class="td-amount" style="font-weight:700;color:var(--accent);">'+fmtYen(m.commission)+'</td>')
+      + '<td class="td-amount" style="color:var(--purple);">'+fmtYen(m.dairiShare)+'</td>'
+      + '</tr>';
+  }).join('');
+
+  // 代理店ユーザーの場合は明細書ボタン表示
+  var meisaiBtn = document.getElementById('btn-meisai-pdf');
+  if (meisaiBtn) meisaiBtn.style.display = (isDairiUser() && filtered.length > 0) ? '' : 'none';
+}
+
+// ============================================================
+// Import
+// ============================================================
+var _importFile = null;
+
+function selectImportCo(co) {
+  _importCo = co;
+  document.querySelectorAll('#import-tabs .tab-item').forEach(function(t) { t.classList.remove('active'); });
+  event.target.classList.add('active');
+  // SMESのみExcel選択可能
+  var typeWrap = document.getElementById('import-type-wrap');
+  if (co === 'SMES') {
+    typeWrap.style.display = '';
+    document.getElementById('import-type').value = 'excel';
+  } else {
+    typeWrap.style.display = '';
+    document.getElementById('import-type').value = 'pdf';
+  }
+}
+
+function handleFileSelect(e) {
+  _importFile = e.target.files[0];
+  if (_importFile) {
+    document.getElementById('import-file-name').textContent = _importFile.name;
+    document.getElementById('parse-btn').disabled = false;
+  }
+}
+
+// Drag & Drop
+var zone = document.getElementById('import-zone');
+if (zone) {
+  zone.addEventListener('dragover', function(e) { e.preventDefault(); zone.classList.add('dragover'); });
+  zone.addEventListener('dragleave', function() { zone.classList.remove('dragover'); });
+  zone.addEventListener('drop', function(e) {
+    e.preventDefault(); zone.classList.remove('dragover');
+    if (e.dataTransfer.files.length) {
+      _importFile = e.dataTransfer.files[0];
+      document.getElementById('import-file-name').textContent = _importFile.name;
+      document.getElementById('parse-btn').disabled = false;
+    }
+  });
+}
+
+async function parseImportFile() {
+  if (!_importFile) return;
+  var importMonth = document.getElementById('import-month').value;
+  if (!importMonth) { showToast('⚠️ 取り込み月を選択してください'); return; }
+
+  showToast('⏳ ファイルを解析中...');
+  try {
+    var type = document.getElementById('import-type').value;
+    var isExcel = type === 'excel' || _importFile.name.match(/\.xlsx?$/i) || _importFile.name.match(/\.csv$/i);
+    console.log('解析開始:', _importFile.name, 'タイプ:', isExcel ? 'Excel' : 'PDF', '電力会社:', _importCo);
+    if (isExcel) {
+      await parseExcel(_importFile, importMonth);
+    } else {
+      await parsePDF(_importFile, importMonth);
+    }
+  } catch(e) {
+    showToast('❌ 解析エラー: ' + e.message);
+    console.error('解析エラー詳細:', e);
+    alert('解析エラー:\n' + e.message + '\n\n' + e.stack);
+  }
+}
+
+async function parseExcel(file, importMonth) {
+  var data = await file.arrayBuffer();
+  var wb = XLSX.read(data, {type:'array', cellDates:true});
+  var ws = wb.Sheets[wb.SheetNames[0]];
+
+  // 全行を配列として取得（ヘッダー自動検出のため）
+  var allRows = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:true});
+
+  // ヘッダー行を探す（「年月」または「需要場所名」を含む行）
+  var headerIdx = -1;
+  for (var i = 0; i < Math.min(allRows.length, 20); i++) {
+    var row = allRows[i].map(function(c){return String(c);});
+    if (row.some(function(c){return c==='年月'||c==='需要場所名';})) {
+      headerIdx = i;
+      break;
+    }
+  }
+  if (headerIdx < 0) {
+    showToast('⚠️ ヘッダー行が見つかりません');
+    return;
+  }
+  console.log('ヘッダー行:', headerIdx, allRows[headerIdx]);
+
+  var headers = allRows[headerIdx].map(function(h){return String(h).trim();});
+  var dataRows = allRows.slice(headerIdx + 1);
+
+  _importData = dataRows.map(function(row) {
+    // ヘッダーとデータをマッピング
+    var r = {};
+    headers.forEach(function(h, idx) { if(h) r[h] = row[idx] !== undefined ? row[idx] : ''; });
+
+    // 顧客名がなければスキップ
+    var customerName = String(r['需要場所名'] || r['法人名'] || r['顧客名'] || '').trim();
+    if (!customerName) return null;
+
+    // 年月を統一フォーマットに
+    var dataMonth = '';
+    var rawMonth = r['年月'] || r['月'] || r['対象年月'] || '';
+    if (rawMonth instanceof Date || (rawMonth && rawMonth.getFullYear)) {
+      dataMonth = rawMonth.getFullYear() + '-' + String(rawMonth.getMonth()+1).padStart(2,'0');
+    } else if (rawMonth) {
+      var dm = String(rawMonth).match(/(\d{4})[-\/](\d{1,2})/);
+      if (dm) dataMonth = dm[1] + '-' + String(Number(dm[2])).padStart(2,'0');
+    }
+
+    // 入金日
+    var payDate = r['入金日'] || r['支払日'] || '';
+    if (payDate instanceof Date || (payDate && payDate.getFullYear)) {
+      payDate = payDate.getFullYear() + '-' + String(payDate.getMonth()+1).padStart(2,'0') + '-' + String(payDate.getDate()).padStart(2,'0');
+    } else if (payDate) {
+      var pd = String(payDate).match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+      if (pd) payDate = pd[1] + '-' + String(Number(pd[2])).padStart(2,'0') + '-' + String(Number(pd[3])).padStart(2,'0');
+    }
+
+    return {
+      importMonth: importMonth,
+      powerCompany: _importCo,
+      dataMonth: dataMonth || importMonth,
+      dairiNo: String(r['代理店'] || r['代理店ID'] || r['紹介元'] || '').trim(),
+      dairiName: String(r['代理店名'] || '').trim(),
+      customerName: customerName,
+      supplyPointNo: String(r['供給地点特定番号'] || r['供給地点番号'] || '').trim(),
+      planName: String(r['料金メニュー名'] || r['料金メニュー'] || '').trim(),
+      usage: Number(r['使用電力量'] || r['使用量'] || 0) || 0,
+      capacity: Number(r['契約容量'] || 0) || 0,
+      capacityUnit: String(r['容量単位'] || r['単位'] || '').trim(),
+      billingAmount: Number(r['請求金額'] || 0) || 0,
+      renewableLevy: Number(r['再エネ賦課金'] || r['再エネ'] || 0) || 0,
+      otherDeduction: Number(r['その他'] || 0) || 0,
+      targetAmount: Number(r['対象金額'] || 0) || 0,
+      commission: Number(r['支払金額'] || r['弊社入金額'] || r['手数料'] || r['紹介料'] || 0) || 0,
+      managementFee: Number(r['管理費'] || 0) || 0,
+      dairiShare: Number(r['支払手数料（代理店分）'] || r['代理店手数料'] || 0) || 0,
+      paymentDate: payDate || ''
+    };
+  }).filter(function(r) { return r !== null; });
+
+  showImportPreview();
+}
+
+async function parsePDF(file, importMonth) {
+  var arrayBuf = await file.arrayBuffer();
+  var pdf = await pdfjsLib.getDocument({data: arrayBuf}).promise;
+
+  // 全ページのテキストを座標付きで取得
+  var allItems = [];
+  for (var i = 1; i <= pdf.numPages; i++) {
+    var page = await pdf.getPage(i);
+    var tc = await page.getTextContent();
+    tc.items.forEach(function(item) {
+      if (item.str.trim()) {
+        allItems.push({
+          text: item.str.trim(),
+          x: Math.round(item.transform[4]),
+          y: Math.round(item.transform[5]),
+          page: i
+        });
+      }
+    });
+  }
+
+  // Y座標でグループ化して「行」を復元（Y座標が3px以内は同じ行）
+  allItems.sort(function(a,b) { return a.page !== b.page ? a.page - b.page : b.y - a.y || a.x - b.x; });
+  var lines = [];
+  var currentLine = [];
+  var lastY = null, lastPage = null;
+  allItems.forEach(function(item) {
+    if (lastY !== null && (item.page !== lastPage || Math.abs(item.y - lastY) > 3)) {
+      if (currentLine.length > 0) {
+        currentLine.sort(function(a,b){return a.x - b.x;});
+        lines.push(currentLine.map(function(c){return c.text;}).join('\t'));
+      }
+      currentLine = [];
+    }
+    currentLine.push(item);
+    lastY = item.y;
+    lastPage = item.page;
+  });
+  if (currentLine.length > 0) {
+    currentLine.sort(function(a,b){return a.x - b.x;});
+    lines.push(currentLine.map(function(c){return c.text;}).join('\t'));
+  }
+
+  console.log('PDF行数:', lines.length);
+  console.log('最初の20行:', lines.slice(0, 20));
+
+  // 電力会社ごとにパース
+  if (_importCo === 'テラス') {
+    // テラスは2ページ目以降のみ（1ページ目は請求書で不要）
+    var page2Lines = [];
+    var page2Items = allItems.filter(function(item) { return item.page >= 2; });
+    // page2Itemsから行を再構築
+    var cLine2 = [], lY2 = null;
+    page2Items.forEach(function(item) {
+      if (lY2 !== null && Math.abs(item.y - lY2) > 3) {
+        if (cLine2.length > 0) {
+          cLine2.sort(function(a,b){return a.x - b.x;});
+          page2Lines.push(cLine2.map(function(c){return c.text;}).join('\t'));
+        }
+        cLine2 = [];
+      }
+      cLine2.push(item);
+      lY2 = item.y;
+    });
+    if (cLine2.length > 0) {
+      cLine2.sort(function(a,b){return a.x - b.x;});
+      page2Lines.push(cLine2.map(function(c){return c.text;}).join('\t'));
+    }
+    _importData = parseTeras(page2Lines, importMonth);
+  } else if (_importCo === '親指') {
+    _importData = parseOyayubi(lines, importMonth);
+  } else if (_importCo === '高圧') {
+    _importData = parseKoatsu(lines, importMonth);
+  } else {
+    _importData = [];
+    showToast('⚠️ この電力会社のパーサーは未対応です');
+  }
+
+  showImportPreview();
+}
+
+function numParse(s) {
+  return Number(String(s).replace(/[,，￥¥\s]/g, '').replace(/\.00$/, '')) || 0;
+}
+
+// ============================================================
+// テラスパーサー
+// 1ページ目=請求書（不要）、2ページ目=明細
+// 明細行: 「2025年11月 法人名 需要場所名 供給地点番号 供給開始日 ... 請求金額 対象金額 ー 手数料」
+// ============================================================
+function parseTeras(lines, importMonth) {
+  var rows = [];
+  // 「代理店名」「手数料合計」のヘッダー行以降を対象にする
+  var startParsing = false;
+  var headerPassed = false;
+
+  lines.forEach(function(line) {
+    // 明細テーブルのヘッダー行を検出（「年月」と「法人名」を含む行）
+    if (line.includes('年月') && (line.includes('法人名') || line.includes('需要場所名'))) {
+      headerPassed = true;
+      return;
+    }
+    // 「代理店名」「対象年月」のサマリ行を検出
+    if (line.includes('代理店名') && line.includes('対象年月')) {
+      startParsing = true;
+      return;
+    }
+    if (!startParsing) return;
+    if (!headerPassed) return;
+
+    // 「20XX年XX月」を含む行のみ
+    var m = line.match(/(\d{4})年(\d{1,2})月/);
+    if (!m) return;
+    var dataMonth = m[1] + '-' + String(Number(m[2])).padStart(2,'0');
+
+    var parts = line.split('\t').map(function(s){return s.trim();}).filter(function(s){return s;});
+
+    // スキップ: 合計行、支払分行、請求書1P行
+    var skipWords = ['合計','支払分','業務委託','消費税','手数料支払','金額(税','インボイス','口座'];
+    if (parts.some(function(p) { return skipWords.some(function(w){return p.includes(w);}); })) return;
+
+    // 数値とテキストを分離
+    var nums = [];
+    var texts = [];
+    var supplyPoint = '';
+
+    parts.forEach(function(p) {
+      var cleaned = p.replace(/[,，]/g, '');
+      // 供給地点番号（20-22桁の数字）
+      if (/^\d{20,22}$/.test(cleaned)) { supplyPoint = cleaned; return; }
+      // 数値
+      if (/^\d+$/.test(cleaned)) {
+        nums.push(Number(cleaned));
+      } else if (p !== 'ー' && p !== '-') {
+        texts.push(p);
+      }
+    });
+
+    // 最低3つの数値（請求金額,対象金額,手数料）が必要
+    if (nums.length < 3) return;
+
+    // 後ろから: 手数料, 対象金額, 請求金額
+    var commission = nums[nums.length - 1];
+    var targetAmount = nums[nums.length - 2];
+    var billingAmount = nums[nums.length - 3];
+
+    // 法人名: 「20XX年XX月」以外のテキストで最初のもの
+    var customerName = '';
+    for (var i = 0; i < texts.length; i++) {
+      var t = texts[i];
+      if (t.match(/^\d{4}年/) || t.match(/^\d{4}\//) || t.includes('テラスネオ') ||
+          t.includes('従量') || t.includes('低圧') || t.includes('高圧') || t.includes('プラス') ||
+          t.includes('kW') || t.includes('kVA') || t.length <= 1 || t.match(/^\d+[A-Za-z]/)) continue;
+      customerName = t;
+      break;
+    }
+    if (!customerName) return;
+
+    rows.push({
+      importMonth: importMonth, powerCompany: 'テラス',
+      dataMonth: dataMonth, customerName: customerName,
+      supplyPointNo: supplyPoint, planName: '',
+      usage: 0, capacity: 0, capacityUnit: '',
+      billingAmount: billingAmount, renewableLevy: 0, otherDeduction: 0,
+      targetAmount: targetAmount, commission: commission,
+      managementFee: 0, dairiShare: 0, paymentDate: '',
+      dairiNo: '', dairiName: ''
+    });
+  });
+  return rows;
+}
+
+// ============================================================
+// 親指でんきパーサー
+// 2ページ目: 「2026/1 PP... 需要場所名 供給地点番号 ... 請求金額 再エネ 対象金額 紹介料 管理費 支払金額」
+// 3行目: 案件名なしの集計行「91,924  91,924」→差分を「その他紹介料」として取り込み
+// ============================================================
+function parseOyayubi(lines, importMonth) {
+  var rows = [];
+  var startParsing = false;
+
+  lines.forEach(function(line) {
+    if (line.includes('代理店名') && line.includes('対象年月')) { startParsing = true; return; }
+    if (!startParsing) return;
+    // ヘッダー行スキップ
+    if (line.includes('年月') && line.includes('需要場所')) return;
+
+    var parts = line.split('\t').map(function(s){return s.trim();}).filter(function(s){return s;});
+    if (parts.length === 0) return;
+
+    // 日付パターンを探す
+    var m = line.match(/(\d{4})\/(\d{1,2})/);
+    var dataMonth = m ? m[1] + '-' + String(Number(m[2])).padStart(2,'0') : '';
+
+    // 顧客名を探す
+    var customerName = '';
+    var supplyPoint = '';
+
+    parts.forEach(function(p) {
+      if (/^\d{4}\/\d{1,2}$/.test(p)) return; // 日付スキップ
+      if (/^PP\d+/.test(p)) return; // 需要場所IDスキップ
+      if (/^\d{20,22}$/.test(p)) { supplyPoint = p; return; } // 供給地点番号
+      // 顧客名候補（数値でなく、単位でなく、2文字以上）
+      if (!customerName && p.length >= 2 && !/^[\d,.\-\s]+$/.test(p) &&
+          !p.includes('kW') && !p.includes('kVA') && p !== 'A' &&
+          !p.includes('合計') && !p.includes('支払明細')) {
+        customerName = p;
+      }
+    });
+
+    // 数値を全部拾う
+    var nums = [];
+    parts.forEach(function(p) {
+      var cleaned = p.replace(/[,，]/g, '').replace(/\.00$/, '');
+      if (/^\d+$/.test(cleaned) && cleaned.length >= 2) {
+        nums.push(Number(cleaned));
+      }
+    });
+
+    // 案件名あり → 通常行
+    if (customerName && nums.length >= 1) {
+      var commission = nums[nums.length - 1];
+      var targetAmount = nums.length >= 3 ? nums[nums.length - 3] : 0;
+      var billingAmount = nums.length >= 5 ? nums[nums.length - 5] : 0;
+      var renewableLevy = nums.length >= 4 ? nums[nums.length - 4] : 0;
+
+      rows.push({
+        importMonth: importMonth, powerCompany: '親指',
+        dataMonth: dataMonth, customerName: customerName,
+        supplyPointNo: supplyPoint, planName: '',
+        usage: 0, capacity: 0, capacityUnit: '',
+        billingAmount: billingAmount, renewableLevy: renewableLevy, otherDeduction: 0,
+        targetAmount: targetAmount, commission: commission,
+        managementFee: 0, dairiShare: 0, paymentDate: '',
+        dairiNo: '', dairiName: ''
+      });
+      return;
+    }
+
+    // 案件名なし＋数値のみの行 → そのまま「その他紹介料」として金額を取り込む
+    if (!customerName && nums.length >= 1) {
+      // 最後の数値をそのまま「その他紹介料」として取り込む
+      var otherAmount = nums[nums.length - 1];
+      if (otherAmount > 0) {
+        rows.push({
+          importMonth: importMonth, powerCompany: '親指',
+          dataMonth: dataMonth || importMonth, customerName: 'その他紹介料',
+          supplyPointNo: '', planName: '案件名記載なし',
+          usage: 0, capacity: 0, capacityUnit: '',
+          billingAmount: 0, renewableLevy: 0, otherDeduction: 0,
+          targetAmount: 0, commission: otherAmount,
+          managementFee: 0, dairiShare: 0, paymentDate: '',
+          dairiNo: '', dairiName: ''
+        });
+      }
+    }
+  });
+  return rows;
+}
+
+// ============================================================
+// 高圧パーサー（アイエステクノサービス）
+// シンプル: 日付・案件名・弊社手数料のみ
+// PDF: 「代理店手数料  8,065  シン・エナジー【2025年11月分】  社会福祉法人寿心会...」
+// 座標ベースなので同じ行にまとまらない場合がある
+// ============================================================
+function parseKoatsu(lines, importMonth) {
+  var rows = [];
+  console.log('高圧: 全', lines.length, '行');
+  lines.forEach(function(l,i){console.log('高圧L'+i+':', l);});
+
+  // 全テキストを結合して「代理店手数料」の後ろを解析する方式
+  var allText = lines.join('\n');
+
+  // パターン1: 「代理店手数料」が行内にある場合
+  lines.forEach(function(line) {
+    if (!line.includes('代理店手数料')) return;
+    var parts = line.split('\t').map(function(s){return s.trim();}).filter(function(s){return s;});
+
+    var amount = 0;
+    var memo = '';
+    var customerName = '';
+    var afterKey = false;
+
+    parts.forEach(function(p) {
+      if (p === '代理店手数料') { afterKey = true; return; }
+      if (!afterKey) return;
+      var cleaned = p.replace(/[,，]/g, '');
+      if (!amount && /^\d{3,}$/.test(cleaned)) {
+        amount = Number(cleaned);
+      } else if (p.length >= 2 && !/^\d+$/.test(cleaned) && p !== '0') {
+        // 電力会社情報 or 顧客名
+        if (p.includes('【') || p.includes('エナジー') || p.includes('電力') || p.includes('Ｊａｐａｎ')) {
+          memo = p;
+        } else {
+          customerName = customerName ? customerName + ' ' + p : p;
+        }
+      }
+    });
+
+    if (amount > 0) {
+      rows.push({
+        importMonth: importMonth, powerCompany: '高圧',
+        dataMonth: importMonth, customerName: customerName || memo || '不明',
+        supplyPointNo: '', planName: memo,
+        usage: 0, capacity: 0, capacityUnit: '',
+        billingAmount: 0, renewableLevy: 0, otherDeduction: 0,
+        targetAmount: 0, commission: amount,
+        managementFee: 0, dairiShare: 0, paymentDate: '',
+        dairiNo: '', dairiName: ''
+      });
+    }
+  });
+
+  // パターン2: 行が分かれている場合（「代理店手数料」行が見つからない時）
+  if (rows.length === 0) {
+    // 「商品番号」テーブルのデータを探す
+    // 金額（4桁以上）と顧客名のペアを探す
+    var pendingAmount = 0;
+    var pendingMemo = '';
+
+    lines.forEach(function(line) {
+      var parts = line.split('\t').map(function(s){return s.trim();}).filter(function(s){return s;});
+      // スキップ行
+      if (line.includes('商品番号') || line.includes('振込口座') || line.includes('小計') ||
+          line.includes('合計') || line.includes('消費税') || line.includes('御中') ||
+          line.includes('登録番号') || line.includes('支払期日') || line.includes('発効日') ||
+          line.includes('備考') && parts.length <= 2) return;
+
+      parts.forEach(function(p) {
+        var cleaned = p.replace(/[,，]/g, '');
+        if (/^\d{4,}$/.test(cleaned)) {
+          if (!pendingAmount) pendingAmount = Number(cleaned);
+        } else if (p.length >= 4 && !/^\d+$/.test(cleaned) && !p.includes('代理店手数料') &&
+                   !p.includes('支払') && !p.includes('請求')) {
+          if (p.includes('【') || p.includes('エナジー') || p.includes('電力') || p.includes('Ｊａｐａｎ')) {
+            pendingMemo = p;
+          } else if (pendingAmount > 0) {
+            rows.push({
+              importMonth: importMonth, powerCompany: '高圧',
+              dataMonth: importMonth, customerName: p,
+              supplyPointNo: '', planName: pendingMemo,
+              usage: 0, capacity: 0, capacityUnit: '',
+              billingAmount: 0, renewableLevy: 0, otherDeduction: 0,
+              targetAmount: 0, commission: pendingAmount,
+              managementFee: 0, dairiShare: 0, paymentDate: '',
+              dairiNo: '', dairiName: ''
+            });
+            pendingAmount = 0;
+            pendingMemo = '';
+          }
+        }
+      });
+    });
+  }
+
+  console.log('高圧 結果:', rows.length, '件');
+  return rows;
+}
+
+function parseGeneric(text, importMonth) {
+  showToast('⚠️ この電力会社のパーサーは未対応です');
+  return [];
+}
+
+function matchImportData() {
+  // 案件マスタから代理店マッチング（顧客名の部分一致・完全一致）
+  var matchCount = 0;
+  var unmatchCount = 0;
+  _importData.forEach(function(d, i) {
+    if (d._matched) return; // 手動設定済みはスキップ
+    var cName = (d.customerName || '').replace(/[\s　]/g,'');
+    if (!cName) { unmatchCount++; return; }
+
+    // 完全一致 → 部分一致の順で検索
+    var match = masterList.find(function(m) {
+      return m.customerName && m.customerName.replace(/[\s　]/g,'') === cName;
+    });
+    if (!match) {
+      // 部分一致（どちらかが含む）
+      match = masterList.find(function(m) {
+        if (!m.customerName) return false;
+        var mName = m.customerName.replace(/[\s　]/g,'');
+        return mName.includes(cName) || cName.includes(mName);
+      });
+    }
+    // 供給地点番号でもマッチ
+    if (!match && d.supplyPointNo) {
+      match = masterList.find(function(m) {
+        return m.supplyPointNo && m.supplyPointNo === d.supplyPointNo;
+      });
+    }
+
+    if (match) {
+      d.dairiNo = match.dairiNo || '';
+      d.dairiName = match.dairiName || '';
+      d._companyFeeRate = Number(match.companyFeeRate) || 0;
+      d._dairiFeeRate = Number(match.dairiFeeRate) || 0;
+      d._matchType = 'auto';
+      // 代理店手数料計算
+      var comm = Number(d.commission) || 0;
+      if (comm <= 0) {
+        // 弊社手数料が0円以下の場合、代理店手数料も0円
+        d.dairiShare = 0;
+        d._warn = 'zero';
+      } else if (d._dairiFeeRate > 0 && d.targetAmount > 0) {
+        d.dairiShare = Math.floor(d.targetAmount * d._dairiFeeRate / 100);
+      } else if (d._dairiFeeRate > 0 && comm > 0) {
+        d.dairiShare = Math.floor(comm * d._dairiFeeRate / 100);
+      }
+      // 代理店手数料が弊社手数料を超える場合は警告
+      if (d.dairiShare > comm && comm > 0) {
+        d._warn = 'over';
+      }
+      matchCount++;
+    } else {
+      d._matchType = 'none';
+      unmatchCount++;
+    }
+  });
+  return { matchCount: matchCount, unmatchCount: unmatchCount };
+}
+
+function buildDairiOptions() {
+  // 案件マスタから代理店一覧を取得
+  var dairis = {};
+  masterList.forEach(function(m) {
+    if (m.dairiNo) dairis[m.dairiNo] = m.dairiName || m.dairiNo;
+  });
+  var opts = '<option value="">-- 未設定 --</option>';
+  Object.keys(dairis).forEach(function(k) {
+    opts += '<option value="'+k+'">'+k+' '+dairis[k]+'</option>';
+  });
+  return opts;
+}
+
+function showImportPreview() {
+  if (_importData.length === 0) {
+    showToast('⚠️ 取り込み可能なデータが見つかりませんでした');
+    return;
+  }
+
+  // 自動マッチング実行
+  var result = matchImportData();
+  var dairiOpts = buildDairiOptions();
+
+  showToast('✅ ' + _importData.length + '件検出（マッチ: '+result.matchCount+'件 / 未マッチ: '+result.unmatchCount+'件）');
+  document.getElementById('preview-count').textContent = _importData.length;
+
+  // マッチ状況サマリー
+  var summaryHtml = '<div style="display:flex;gap:12px;margin-bottom:12px;font-size:12px;">'
+    + '<span style="color:var(--green);font-weight:700;">✅ マッチ: '+result.matchCount+'件</span>'
+    + '<span style="color:var(--red);font-weight:700;">❌ 未マッチ: '+result.unmatchCount+'件</span>'
+    + '<span style="color:var(--text3);">※ 未マッチの行は代理店をプルダウンで選択してください</span>'
+    + '</div>';
+
+  document.getElementById('preview-thead').innerHTML = '<th>状態</th><th>対象月</th><th>顧客名</th><th>供給地点番号</th><th style="text-align:right;">請求金額</th><th style="text-align:right;">対象金額</th><th style="text-align:right;">弊社手数料</th><th>代理店</th><th style="text-align:right;">代理店手数料</th>';
+
+  var warnZero = 0;
+  var warnOver = 0;
+  var tbodyHtml = _importData.map(function(m,i) {
+    var isUnmatched = !m.dairiNo;
+    var comm = Number(m.commission) || 0;
+    var isZeroComm = (comm <= 0 && m.dairiNo);
+    var isOverComm = (m.dairiShare > comm && comm > 0);
+    if (isZeroComm) warnZero++;
+    if (isOverComm) warnOver++;
+
+    var rowStyle = '';
+    var statusIcon = '';
+    if (isUnmatched) {
+      rowStyle = ' style="background:#fef2f2;"';
+      statusIcon = '<span style="color:var(--red);font-weight:700;">❌</span>';
+    } else if (isZeroComm) {
+      rowStyle = ' style="background:#fefce8;"';
+      statusIcon = '<span style="color:#d97706;font-weight:700;">⚠️</span>';
+    } else if (isOverComm) {
+      rowStyle = ' style="background:#fff7ed;"';
+      statusIcon = '<span style="color:#ea580c;">⚠️</span>';
+    } else {
+      statusIcon = '<span style="color:var(--green);">✅</span>';
+    }
+
+    // 代理店セレクトボックス
+    var dairiCell;
+    if (isUnmatched) {
+      dairiCell = '<select onchange="onImportDairiChange('+i+',this.value)" style="padding:3px 6px;border:1px solid var(--red);border-radius:4px;font-size:10px;background:#fff;min-width:120px;">'
+        + dairiOpts + '</select>';
+    } else {
+      dairiCell = '<select onchange="onImportDairiChange('+i+',this.value)" style="padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:10px;background:#fff;min-width:120px;">'
+        + dairiOpts.replace('value="'+m.dairiNo+'"', 'value="'+m.dairiNo+'" selected')
+        + '</select>';
+    }
+
+    // 弊社手数料セルの表示（0円は赤字）
+    var commCell = comm <= 0
+      ? '<td class="td-amount" style="font-weight:700;color:var(--red);">¥0</td>'
+      : '<td class="td-amount" style="font-weight:700;color:var(--accent);">'+fmtYen(m.commission)+'</td>';
+
+    // 代理店手数料セルの表示（超過は赤字）
+    var shareStyle = isOverComm ? 'color:var(--red);font-weight:700;' : 'color:var(--purple);font-weight:600;';
+    var shareCell = '<td class="td-amount" id="dairi-share-'+i+'" style="'+shareStyle+'">'+fmtYen(m.dairiShare)+'</td>';
+
+    return '<tr'+rowStyle+'>'
+      + '<td style="text-align:center;">'+statusIcon+'</td>'
+      + '<td class="td-date">'+(m.dataMonth||'-')+'</td>'
+      + '<td class="td-main">'+(m.customerName||'-')+'</td>'
+      + '<td style="font-size:9px;font-family:monospace;">'+(m.supplyPointNo||'-')+'</td>'
+      + '<td class="td-amount">'+fmtYen(m.billingAmount)+'</td>'
+      + '<td class="td-amount">'+fmtYen(m.targetAmount)+'</td>'
+      + commCell
+      + '<td>'+dairiCell+'</td>'
+      + shareCell
+      + '</tr>';
+  }).join('');
+
+  // 警告サマリー追加
+  if (warnZero > 0 || warnOver > 0) {
+    summaryHtml += '<div style="margin-top:4px;font-size:12px;">';
+    if (warnZero > 0) summaryHtml += '<span style="color:#d97706;font-weight:700;">⚠️ 弊社手数料¥0: '+warnZero+'件（代理店手数料を¥0に設定）</span> ';
+    if (warnOver > 0) summaryHtml += '<span style="color:#ea580c;font-weight:700;">⚠️ 代理店手数料＞弊社手数料: '+warnOver+'件（赤字）</span>';
+    summaryHtml += '</div>';
+  }
+
+  // サマリーをプレビューカード上部に挿入
+  var previewCard = document.getElementById('import-preview');
+  // 既存のサマリーを削除して再挿入
+  var existingSummary = document.getElementById('import-match-summary');
+  if (existingSummary) existingSummary.remove();
+  var summaryDiv = document.createElement('div');
+  summaryDiv.id = 'import-match-summary';
+  summaryDiv.innerHTML = summaryHtml;
+  previewCard.querySelector('.dash-card-title').after(summaryDiv);
+
+  document.getElementById('preview-tbody').innerHTML = tbodyHtml;
+  previewCard.style.display = '';
+}
+
+function onImportDairiChange(idx, dairiNo) {
+  var d = _importData[idx];
+  d.dairiNo = dairiNo;
+  d._matched = true;
+
+  // 選んだ代理店から案件マスタを検索して手数料率を取得
+  if (dairiNo) {
+    var match = masterList.find(function(m) {
+      return m.dairiNo === dairiNo && m.customerName &&
+        d.customerName && m.customerName.replace(/[\s　]/g,'').includes(d.customerName.replace(/[\s　]/g,'').substring(0,4));
+    });
+    if (!match) {
+      // 代理店番号だけで最初のものを使う（手数料率の参考値）
+      match = masterList.find(function(m) { return m.dairiNo === dairiNo; });
+    }
+    if (match) {
+      d.dairiName = match.dairiName || '';
+      d._dairiFeeRate = Number(match.dairiFeeRate) || 0;
+      d._companyFeeRate = Number(match.companyFeeRate) || 0;
+      var comm = Number(d.commission) || 0;
+      if (comm <= 0) {
+        d.dairiShare = 0;
+        d._warn = 'zero';
+      } else if (d._dairiFeeRate > 0 && d.targetAmount > 0) {
+        d.dairiShare = Math.floor(d.targetAmount * d._dairiFeeRate / 100);
+      } else if (d._dairiFeeRate > 0 && comm > 0) {
+        d.dairiShare = Math.floor(comm * d._dairiFeeRate / 100);
+      }
+      if (d.dairiShare > comm && comm > 0) {
+        d._warn = 'over';
+      }
+    }
+  } else {
+    d.dairiName = '';
+    d.dairiShare = 0;
+  }
+
+  // 代理店手数料セルを更新
+  var cell = document.getElementById('dairi-share-'+idx);
+  if (cell) cell.textContent = fmtYen(d.dairiShare);
+
+  // 行の背景色更新
+  var row = cell ? cell.parentElement : null;
+  if (row) row.style.background = dairiNo ? '' : '#fef2f2';
+
+  // ステータスアイコン更新
+  if (row && row.cells[0]) {
+    row.cells[0].innerHTML = dairiNo ? '<span style="color:var(--green);">✅</span>' : '<span style="color:var(--red);font-weight:700;">❌</span>';
+  }
+}
+
+function cancelImport() {
+  _importData = [];
+  document.getElementById('import-preview').style.display = 'none';
+}
+
+async function confirmImport() {
+  if (_importData.length === 0) return;
+
+  // 未マッチ件数チェック
+  var unmatched = _importData.filter(function(d) { return !d.dairiNo; });
+  if (unmatched.length > 0) {
+    if (!confirm('⚠️ ' + unmatched.length + '件が代理店未設定です。\nそのまま保存しますか？（後から案件一覧で紐付け可能）')) return;
+  }
+
+  showToast('⏳ 保存中...');
+  try {
+    // _matchType等の内部フラグを除去してから送信
+    var sendData = _importData.map(function(d) {
+      var clean = {};
+      Object.keys(d).forEach(function(k) {
+        if (k.charAt(0) !== '_') clean[k] = d[k];
+      });
+      return clean;
+    });
+
+    var res = await apiCall('bulkSavePowerMonthly', {data: sendData});
+    if (res.ok) {
+      showToast('✅ ' + (res.count||_importData.length) + '件を保存しました');
+      _importData = [];
+      document.getElementById('import-preview').style.display = '';
+      var existingSummary = document.getElementById('import-match-summary');
+      if (existingSummary) existingSummary.remove();
+      document.getElementById('import-preview').style.display = 'none';
+      await loadData();
+    } else {
+      showToast('❌ ' + (res.error||'保存エラー'));
+    }
+  } catch(e) { showToast('❌ 通信エラー'); console.error(e); }
+}
+
+// ============================================================
+// Dairi Pay (Improved)
+// ============================================================
+function renderDairiPay() {
+  var ym = document.getElementById('dairi-pay-month').value;
+  var dairiFilter = document.getElementById('dairi-pay-filter').value;
+  if (!ym) return;
+
+  var monthData = monthlyList.filter(function(m) {
+    var matchYm = String(m.importMonth||'').substring(0,7) === ym;
+    var matchDairi = !dairiFilter || m.dairiNo === dairiFilter;
+    return matchYm && matchDairi;
+  });
+
+  // 代理店ごとにグループ化
+  var byDairi = {};
+  monthData.forEach(function(m) {
+    var key = m.dairiNo || '未設定';
+    if (!byDairi[key]) byDairi[key] = { name: m.dairiName || key, items: [], total: 0, totalCommission: 0 };
+    byDairi[key].items.push(m);
+    byDairi[key].total += Number(m.dairiShare) || 0;
+    byDairi[key].totalCommission += Number(m.commission) || 0;
+  });
+
+  var wrap = document.getElementById('dairi-pay-content');
+  if (Object.keys(byDairi).length === 0) {
+    wrap.innerHTML = '<div class="dash-card" style="text-align:center;color:var(--text3);padding:40px;">該当するデータがありません</div>';
+    return;
+  }
+
+  // 全体サマリー
+  var grandTotal = Object.keys(byDairi).reduce(function(s,k){ return s + byDairi[k].total; }, 0);
+  var grandCommission = Object.keys(byDairi).reduce(function(s,k){ return s + byDairi[k].totalCommission; }, 0);
+  var grandNet = grandCommission - grandTotal;
+  var dairiCount = Object.keys(byDairi).filter(function(k){return k !== '未設定';}).length;
+
+  var summaryHtml = '<div class="summary-grid">'
+    + '<div class="summary-item" style="border-top-color:var(--accent);"><div class="summary-label">弊社手数料合計</div><div class="summary-value" style="color:var(--accent);">'+fmtYen(grandCommission)+'</div></div>'
+    + '<div class="summary-item" style="border-top-color:var(--purple);"><div class="summary-label">代理店支払合計</div><div class="summary-value" style="color:var(--purple);">'+fmtYen(grandTotal)+'</div><div class="summary-sub">'+dairiCount+'社</div></div>'
+    + '<div class="summary-item" style="border-top-color:var(--green);"><div class="summary-label">差引（弊社利益）</div><div class="summary-value" style="color:var(--green);">'+fmtYen(grandNet)+'</div></div>'
+    + '</div>';
+
+  wrap.innerHTML = summaryHtml + Object.keys(byDairi).map(function(dairiNo) {
+    var d = byDairi[dairiNo];
+    // 電力会社別の小計
+    var byCo = {};
+    d.items.forEach(function(m) {
+      var co = m.powerCompany || 'その他';
+      if (!byCo[co]) byCo[co] = { count: 0, commission: 0, dairiShare: 0 };
+      byCo[co].count++;
+      byCo[co].commission += Number(m.commission) || 0;
+      byCo[co].dairiShare += Number(m.dairiShare) || 0;
+    });
+    var coSummary = Object.keys(byCo).map(function(co) {
+      return companyBadge(co) + ' ' + byCo[co].count + '件 / 支払 ' + fmtYen(byCo[co].dairiShare);
+    }).join('　');
+
+    return '<div class="dash-card">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">'
+      + '<div class="dash-card-title" style="margin:0;">🏢 ' + dairiNo + '　' + d.name + '</div>'
+      + '<div style="font-size:18px;font-weight:800;color:var(--purple);">支払合計 ' + fmtYen(d.total) + '</div>'
+      + '</div>'
+      + '<div style="font-size:11px;color:var(--text3);margin-bottom:12px;">' + coSummary + '</div>'
+      + '<table class="data-table"><thead><tr>'
+      + '<th>対象月</th><th>顧客名</th><th>電力会社</th><th style="text-align:right;">対象金額</th><th style="text-align:right;">電力会社→弊社%</th><th style="text-align:right;">弊社手数料</th><th style="text-align:right;">代理店手数料%</th><th style="text-align:right;">代理店手数料</th>'
+      + '</tr></thead><tbody>'
+      + d.items.map(function(m) {
+        // 案件マスタから手数料率を探す（代理店番号＋顧客名で検索）
+        var masterMatch = masterList.find(function(ma) {
+          return ma.customerName && m.customerName &&
+            ma.customerName.replace(/[\s　]/g,'') === m.customerName.replace(/[\s　]/g,'') &&
+            ma.dairiNo && ma.dairiNo === m.dairiNo;
+        });
+        // 代理店番号一致がなければ顧客名のみで検索
+        if (!masterMatch) {
+          masterMatch = masterList.find(function(ma) {
+            return ma.customerName && m.customerName &&
+              ma.customerName.replace(/[\s　]/g,'') === m.customerName.replace(/[\s　]/g,'');
+          });
+        }
+        var companyRate = masterMatch ? (masterMatch.companyFeeRate || '-') : '-';
+        var dairiRate = masterMatch ? (masterMatch.dairiFeeRate || '-') : '-';
+
+        return '<tr>'
+          + '<td class="td-date">'+(m.dataMonth||'-')+'</td>'
+          + '<td class="td-main">'+(m.customerName||'-')+'</td>'
+          + '<td>'+companyBadge(m.powerCompany)+'</td>'
+          + '<td class="td-amount">'+fmtYen(m.targetAmount)+'</td>'
+          + '<td class="td-amount" style="color:var(--text3);">'+(companyRate !== '-' ? companyRate+'%' : '-')+'</td>'
+          + '<td class="td-amount" style="color:var(--accent);">'+fmtYen(m.commission)+'</td>'
+          + '<td class="td-amount" style="color:var(--text3);">'+(dairiRate !== '-' ? dairiRate+'%' : '-')+'</td>'
+          + '<td class="td-amount" style="font-weight:700;color:var(--purple);">'+fmtYen(m.dairiShare)+'</td>'
+          + '</tr>';
+      }).join('')
+      + '<tr style="background:var(--bg2);font-weight:700;"><td colspan="5" style="text-align:right;padding:8px 10px;">小計</td><td class="td-amount" style="color:var(--accent);">'+fmtYen(d.totalCommission)+'</td><td></td><td class="td-amount" style="color:var(--purple);">'+fmtYen(d.total)+'</td></tr>'
+      + '</tbody></table></div>';
+  }).join('');
+}
+
+function printDairiPay() { window.print(); }
+
+// ============================================================
+// Master Import (案件マスタ取込)
+// ============================================================
+var _miFile = null;
+var _miRawData = []; // 全行データ
+var _miHeaders = []; // ヘッダー行
+var _miMapping = {}; // カラムマッピング
+var _miParsedData = []; // パース済みデータ
+
+// マッピング対象フィールド
+var MI_FIELDS = [
+  {key:'caseNo', label:'件数', hint:['件数']},
+  {key:'orderDate', label:'受注日', hint:['日付','受注日']},
+  {key:'caseId', label:'ID', hint:['ID']},
+  {key:'status', label:'進捗', hint:['進捗','ステータス','状態']},
+  {key:'email', label:'メールアドレス', hint:['メールアドレス']},
+  {key:'dairiNo', label:'代理店番号', hint:['代理店番号','代理店']},
+  {key:'dairiName', label:'代理店名（屋号）', hint:['ご案内元','代理店名','会社名（屋号）']},
+  {key:'dairiTanto', label:'代理店担当者名及び連絡先', hint:['担当者名及び連絡先']},
+  {key:'powerCompany', label:'申込希望の電力会社', hint:['申込希望の電力会社','電力会社']},
+  {key:'meidenUrl', label:'電気明細データURL', hint:['電気明細データ','電気明細']},
+  {key:'bizType', label:'お申込者の区分', hint:['お申込者の区分','区分']},
+  {key:'customerName', label:'顧客名（会社名）', hint:['１，会社名（屋号）','会社名','顧客名','法人名']},
+  {key:'customerKana', label:'顧客名フリガナ', hint:['会社名のフリガナ','フリガナ']},
+  {key:'ceoTitle', label:'代表者の役職', hint:['代表者の役職','役職']},
+  {key:'applicantName', label:'申込者名（代表者名）', hint:['申込者名（代表者名）','申込者名','代表者名']},
+  {key:'applicantKana', label:'申込者名フリガナ', hint:['申込者名（代表者名）のフリガナ','申込者名のフリガナ']},
+  {key:'prefecture', label:'都道府県', hint:['都道府県']},
+  {key:'city', label:'市区町村', hint:['市区町村']},
+  {key:'address', label:'丁目・番地', hint:['丁目・番地','番地']},
+  {key:'building', label:'建物名', hint:['建物名']},
+  {key:'address2', label:'住所②', hint:['住所②','住所2']},
+  {key:'phone', label:'連絡先', hint:['１，連絡先','連絡先']},
+  {key:'phone2', label:'お申込み連絡先②', hint:['お申込み連絡先②','連絡先②','連絡先2']},
+  {key:'email2', label:'メールアドレス②', hint:['３，メールアドレス']},
+  {key:'contractType', label:'契約種別', hint:['契約種別']},
+  {key:'capacity100', label:'契約容量(100V)', hint:['契約容量（100V）','契約容量(100V)']},
+  {key:'capacity200', label:'契約容量(200V)', hint:['契約容量（200V）','契約容量(200V)']},
+  {key:'capacity6600', label:'契約容量(6600V)', hint:['契約容量（6600V）','契約容量(6600V)']},
+  {key:'recentUsage', label:'直近の使用量', hint:['直近の使用量','使用量']},
+  {key:'payMethod', label:'お支払方法', hint:['お支払方法','支払方法']},
+  {key:'billMethod', label:'明細確認方法', hint:['明細確認方法']},
+  {key:'currentPowerCo', label:'現在の電力会社', hint:['現在の電力会社']},
+  {key:'supplyPointNo', label:'供給地点番号', hint:['供給地点番号']},
+  {key:'contractName', label:'電気の契約名義', hint:['電気の契約名義','契約名義']},
+  {key:'subTantoName', label:'担当者名（代表以外）', hint:['10，担当者名','担当者名']},
+  {key:'subTantoKana', label:'担当者名フリガナ', hint:['11，担当者名のフリガナ','担当者名のフリガナ']},
+  {key:'customerNo', label:'お客様番号', hint:['お客様番号']},
+  {key:'dairiFeeRate', label:'代理店手数料%（AQ列）', hint:['手数料']},
+  {key:'companyFeeRate', label:'電力会社→弊社手数料%（AR列）', hint:['％','%']},
+  {key:'stoooTanto', label:'Stooo担当', hint:['Stooo','Stooo担当']},
+  {key:'stoooContact', label:'Stooo担当連絡先', hint:['担当連絡先']},
+];
+
+function handleMiFileSelect(e) {
+  _miFile = e.target.files[0];
+  if (_miFile) {
+    document.getElementById('mi-file-name').textContent = _miFile.name;
+    document.getElementById('mi-parse-btn').disabled = false;
+  }
+}
+
+// Drag & Drop for MI
+(function() {
+  var z = document.getElementById('mi-zone');
+  if (!z) return;
+  z.addEventListener('dragover', function(e) { e.preventDefault(); z.classList.add('dragover'); });
+  z.addEventListener('dragleave', function() { z.classList.remove('dragover'); });
+  z.addEventListener('drop', function(e) {
+    e.preventDefault(); z.classList.remove('dragover');
+    if (e.dataTransfer.files.length) {
+      _miFile = e.dataTransfer.files[0];
+      document.getElementById('mi-file-name').textContent = _miFile.name;
+      document.getElementById('mi-parse-btn').disabled = false;
+    }
+  });
+})();
+
+async function parseMasterImport() {
+  if (!_miFile) return;
+  showToast('⏳ ファイルを解析中...');
+  try {
+    var data = await _miFile.arrayBuffer();
+    var wb = XLSX.read(data, {type:'array', cellDates:true});
+    var ws = wb.Sheets[wb.SheetNames[0]];
+    var allRows = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:true});
+
+    if (allRows.length < 2) { showToast('⚠️ データが少なすぎます'); return; }
+
+    // ヘッダー行検出
+    var headerMode = document.getElementById('mi-header-row').value;
+    var headerIdx = 0;
+    if (headerMode === 'auto') {
+      // 「件数」「日付」「ID」「進捗」「代理店」「会社名」「電力会社」のいずれかを含む行を探す
+      for (var i = 0; i < Math.min(allRows.length, 10); i++) {
+        var rowText = allRows[i].map(function(c){return String(c);}).join(' ');
+        if (rowText.includes('代理店') || rowText.includes('会社名') || rowText.includes('電力会社') || rowText.includes('進捗') || rowText.includes('件数')) {
+          headerIdx = i;
+          break;
+        }
+      }
+    } else {
+      headerIdx = Number(headerMode);
+    }
+
+    _miHeaders = allRows[headerIdx].map(function(h){ return String(h).trim(); });
+    _miRawData = allRows.slice(headerIdx + 1);
+
+    console.log('MI ヘッダー行:', headerIdx, _miHeaders);
+    console.log('MI データ行数:', _miRawData.length);
+
+    // 自動マッピング
+    autoMapColumns();
+
+    // マッピングUIを表示
+    showMappingUI();
+    showToast('✅ ' + _miRawData.length + '行検出。マッピングを確認してください');
+  } catch(e) {
+    showToast('❌ 解析エラー: ' + e.message);
+    console.error(e);
+  }
+}
+
+function autoMapColumns() {
+  _miMapping = {};
+  MI_FIELDS.forEach(function(f) {
+    // ヘッダーの中からhintに部分一致するものを探す
+    var bestIdx = -1;
+    var bestScore = 0;
+    _miHeaders.forEach(function(h, idx) {
+      if (!h) return;
+      // ナンバリングプレフィックスを除去（「１，」「2，」「3，」等）
+      var cleanH = h.replace(/^[０-９\d]+[，,．.、]\s*/, '');
+      f.hint.forEach(function(hint) {
+        var cleanHint = hint.replace(/^[０-９\d]+[，,．.、]\s*/, '');
+        // 完全一致
+        if (cleanH === cleanHint || h === hint) {
+          if (bestScore < 10) { bestIdx = idx; bestScore = 10; }
+        }
+        // 部分一致
+        else if (cleanH.includes(cleanHint) || cleanHint.includes(cleanH)) {
+          var score = cleanHint.length;
+          if (score > bestScore) { bestIdx = idx; bestScore = score; }
+        }
+      });
+    });
+
+    if (bestIdx >= 0) {
+      // 同じ列が既にマッピング済みでないか確認（companyFeeRateとdairiFeeRateの区別）
+      var alreadyUsed = Object.keys(_miMapping).some(function(k){ return _miMapping[k] === bestIdx && k !== f.key; });
+      if (!alreadyUsed) {
+        _miMapping[f.key] = bestIdx;
+      }
+    }
+  });
+
+  // 手数料の特殊処理
+  // スプシのAQ列「手数料」= 代理店手数料(dairiFeeRate)
+  // スプシのAR列「％」= 電力会社→弊社手数料(companyFeeRate)
+  // hintで「手数料」→dairiFeeRateにマッチするはず
+  // その次の「％」列→companyFeeRateに
+  if (_miMapping.dairiFeeRate !== undefined && _miMapping.companyFeeRate === undefined) {
+    var nextIdx = _miMapping.dairiFeeRate + 1;
+    if (nextIdx < _miHeaders.length) {
+      var nextH = _miHeaders[nextIdx];
+      if (nextH === '%' || nextH === '％' || nextH.match(/^%/) || nextH.match(/^％/)) {
+        _miMapping.companyFeeRate = nextIdx;
+      }
+    }
+  }
+
+  // 供給地点番号の重複（AJ列とAN列にある場合、最初のものを使う）
+  console.log('自動マッピング結果:', _miMapping);
+}
+
+function showMappingUI() {
+  var grid = document.getElementById('mi-mapping-grid');
+  var colOpts = '<option value="-1">（マッピングしない）</option>' + _miHeaders.map(function(h, idx) {
+    var colLetter = '';
+    var n = idx;
+    while (n >= 0) { colLetter = String.fromCharCode(65 + (n % 26)) + colLetter; n = Math.floor(n / 26) - 1; }
+    return '<option value="'+idx+'">'+colLetter+': '+h+'</option>';
+  }).join('');
+
+  grid.innerHTML = MI_FIELDS.map(function(f) {
+    var selectedIdx = _miMapping[f.key] !== undefined ? _miMapping[f.key] : -1;
+    return '<div class="form-group"><label>'+f.label+'</label>'
+      + '<select id="mi-map-'+f.key+'" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;">'
+      + colOpts.replace('value="'+selectedIdx+'"', 'value="'+selectedIdx+'" selected')
+      + '</select></div>';
+  }).join('');
+
+  document.getElementById('mi-mapping').style.display = '';
+}
+
+function applyMasterMapping() {
+  // マッピングをUIから取得
+  MI_FIELDS.forEach(function(f) {
+    var el = document.getElementById('mi-map-'+f.key);
+    if (el) {
+      var v = Number(el.value);
+      if (v >= 0) { _miMapping[f.key] = v; }
+      else { delete _miMapping[f.key]; }
+    }
+  });
+
+  console.log('適用マッピング:', _miMapping);
+
+  // データをパース
+  _miParsedData = [];
+  var dupCheck = document.getElementById('mi-dup-check').value;
+  var skipped = 0;
+
+  _miRawData.forEach(function(row) {
+    var rec = {};
+    MI_FIELDS.forEach(function(f) {
+      if (_miMapping[f.key] !== undefined) {
+        var val = row[_miMapping[f.key]];
+        if (val === undefined || val === null) val = '';
+        // 日付処理
+        if (f.key === 'orderDate' && val instanceof Date) {
+          val = val.getFullYear() + '-' + String(val.getMonth()+1).padStart(2,'0') + '-' + String(val.getDate()).padStart(2,'0');
+        }
+        rec[f.key] = String(val).trim();
+      }
+    });
+
+    // 顧客名が空ならスキップ
+    if (!rec.customerName) return;
+
+    // 代理店番号はそのまま保持（D0052, S25-04-1 等のフォーマットを維持）
+    if (rec.dairiNo) {
+      rec.dairiNo = String(rec.dairiNo).trim();
+    }
+
+    // 手数料%の正規化
+    // Excelでパーセント書式の場合、値が小数（0.01 = 1%）で格納されている
+    ['companyFeeRate','dairiFeeRate'].forEach(function(k) {
+      if (rec[k] !== undefined && rec[k] !== '') {
+        var v = String(rec[k]).replace(/[%％]/g,'').trim();
+        var num = Number(v);
+        if (!isNaN(num) && num !== 0) {
+          // 1未満の場合はExcelのパーセント書式（0.01 = 1%）なので100倍
+          if (num > 0 && num < 1) {
+            num = Math.round(num * 10000) / 100; // 0.01 → 1, 0.05 → 5, 0.08 → 8
+          }
+          rec[k] = String(num);
+        } else {
+          rec[k] = v;
+        }
+      }
+    });
+
+    // 電力会社名の正規化
+    if (rec.powerCompany) {
+      var pc = rec.powerCompany;
+      if (pc.includes('SMES') || pc.includes('エスエムイーエス')) rec.powerCompany = 'SMES';
+      else if (pc.includes('テラス')) rec.powerCompany = 'テラス';
+      else if (pc.includes('親指')) rec.powerCompany = '親指';
+      else if (pc.includes('高圧')) rec.powerCompany = '高圧';
+    }
+
+    // 進捗の正規化
+    if (rec.status) {
+      var st = rec.status;
+      if (st.includes('契約') && !st.includes('解')) rec.status = '契約中';
+      else if (st.includes('申込') || st.includes('申し込み')) rec.status = '申込中';
+      else if (st.includes('解約') || st.includes('キャンセル')) rec.status = '解約';
+    }
+    if (!rec.status) rec.status = '契約中';
+
+    // 重複チェック
+    if (dupCheck === 'skip') {
+      var dup = masterList.find(function(m) {
+        return m.customerName && rec.customerName &&
+          m.customerName.replace(/[\s　]/g,'') === rec.customerName.replace(/[\s　]/g,'') &&
+          (m.dairiNo || '') === (rec.dairiNo || '');
+      });
+      if (dup) { skipped++; return; }
+    }
+
+    _miParsedData.push(rec);
+  });
+
+  // プレビュー表示
+  document.getElementById('mi-preview-count').textContent = _miParsedData.length;
+  document.getElementById('mi-dup-info').textContent = skipped > 0 ? '（重複スキップ: ' + skipped + '件）' : '';
+
+  document.getElementById('mi-preview-thead').innerHTML = '<th>進捗</th><th>代理店番号</th><th>代理店名</th><th>電力会社</th><th>顧客名</th><th>申込者名</th><th>供給地点番号</th><th>代理店手数料</th><th>電力会社→弊社%</th><th>お支払</th><th>受注日</th>';
+  document.getElementById('mi-preview-tbody').innerHTML = _miParsedData.slice(0, 100).map(function(r) {
+    return '<tr>'
+      + '<td>'+statusBadge(r.status)+'</td>'
+      + '<td class="td-date">'+(r.dairiNo||'-')+'</td>'
+      + '<td style="font-size:11px;">'+(r.dairiName||'-')+'</td>'
+      + '<td>'+companyBadge(r.powerCompany)+'</td>'
+      + '<td class="td-main">'+(r.customerName||'-')+'</td>'
+      + '<td style="font-size:11px;">'+(r.applicantName||'-')+'</td>'
+      + '<td style="font-size:10px;font-family:monospace;">'+(r.supplyPointNo||'-')+'</td>'
+      + '<td class="td-amount">'+(r.dairiFeeRate ? r.dairiFeeRate+'%' : '-')+'</td>'
+      + '<td class="td-amount">'+(r.companyFeeRate ? r.companyFeeRate+'%' : '-')+'</td>'
+      + '<td style="font-size:10px;">'+(r.payMethod||'-')+'</td>'
+      + '<td class="td-date">'+(r.orderDate||'-')+'</td>'
+      + '</tr>';
+  }).join('');
+
+  if (_miParsedData.length > 100) {
+    document.getElementById('mi-preview-tbody').innerHTML += '<tr><td colspan="11" style="text-align:center;color:var(--text3);padding:12px;">...他 ' + (_miParsedData.length - 100) + '件（表示は100件まで）</td></tr>';
+  }
+
+  document.getElementById('mi-preview').style.display = '';
+  showToast('✅ ' + _miParsedData.length + '件をプレビュー中');
+}
+
+function cancelMasterImport() {
+  _miParsedData = [];
+  document.getElementById('mi-preview').style.display = 'none';
+  document.getElementById('mi-mapping').style.display = 'none';
+}
+
+async function confirmMasterImport() {
+  if (_miParsedData.length === 0) return;
+  showToast('⏳ 保存中... (' + _miParsedData.length + '件)');
+  try {
+    // バッチで送信（50件ずつ）
+    var batchSize = 50;
+    var totalSaved = 0;
+    for (var i = 0; i < _miParsedData.length; i += batchSize) {
+      var batch = _miParsedData.slice(i, i + batchSize);
+      var res = await apiCall('bulkSavePowerMaster', {data: batch});
+      if (res.ok) {
+        totalSaved += res.count || batch.length;
+        showToast('⏳ 保存中... ' + totalSaved + '/' + _miParsedData.length + '件');
+      } else {
+        showToast('❌ バッチ' + (Math.floor(i/batchSize)+1) + 'でエラー: ' + (res.error||'不明'));
+        return;
+      }
+    }
+    showToast('✅ ' + totalSaved + '件を案件マスタに保存しました');
+    _miParsedData = [];
+    document.getElementById('mi-preview').style.display = 'none';
+    document.getElementById('mi-mapping').style.display = 'none';
+    await loadData();
+    renderMasterTable();
+  } catch(e) {
+    showToast('❌ 通信エラー: ' + e.message);
+    console.error(e);
+  }
+}
+
+// ============================================================
+// Util: Script Loader
+// ============================================================
+function loadScript(url) {
+  return new Promise(function(resolve, reject) {
+    var s = document.createElement('script');
+    s.src = url;
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+// ============================================================
+// 支払明細書PDF出力（代理店用）
+// ============================================================
+function generateMeisaiPDF() {
+  var ym = document.getElementById('monthly-month').value;
+  if (!ym) { showToast('⚠️ 対象月を選択してください'); return; }
+
+  var dairiNo = currentUser.dairiNo || '';
+  var dairiName = currentUser.tantoName || dairiNo;
+
+  // 月次データをフィルタ
+  var data = monthlyList.filter(function(m) {
+    return String(m.importMonth||'').substring(0,7) === ym && m.dairiNo === dairiNo;
+  });
+
+  if (data.length === 0) { showToast('⚠️ 該当データがありません'); return; }
+
+  // 電力会社別にグループ化
+  var byCo = {};
+  data.forEach(function(m) {
+    var co = m.powerCompany || 'その他';
+    if (!byCo[co]) byCo[co] = [];
+    byCo[co].push(m);
+  });
+
+  var totalShare = data.reduce(function(s,m){ return s + (Number(m.dairiShare)||0); }, 0);
+  var totalComm = data.reduce(function(s,m){ return s + (Number(m.commission)||0); }, 0);
+
+  var ymLabel = ym.replace('-','年') + '月';
+  var today = new Date();
+  var issueDate = today.getFullYear() + '年' + (today.getMonth()+1) + '月' + today.getDate() + '日';
+
+  // 印刷用HTML生成
+  var html = '<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">'
+    + '<title>支払明細書 - '+ymLabel+' - '+dairiName+'</title>'
+    + '<style>'
+    + 'body{font-family:"Hiragino Sans","Yu Gothic",sans-serif;margin:0;padding:30px 40px;color:#1a2233;font-size:11px;}'
+    + 'h1{font-size:22px;text-align:center;margin:0 0 5px;letter-spacing:2px;}'
+    + '.sub-title{text-align:center;font-size:12px;color:#666;margin-bottom:25px;}'
+    + '.header-info{display:flex;justify-content:space-between;margin-bottom:20px;}'
+    + '.header-left{font-size:12px;}'
+    + '.header-right{text-align:right;font-size:11px;color:#666;}'
+    + '.to-name{font-size:16px;font-weight:700;margin-bottom:8px;border-bottom:2px solid #333;display:inline-block;padding-bottom:2px;}'
+    + '.total-box{text-align:center;margin:20px 0;padding:15px;border:2px solid #2563eb;border-radius:8px;background:#f8faff;}'
+    + '.total-label{font-size:12px;color:#666;}'
+    + '.total-amount{font-size:28px;font-weight:900;color:#2563eb;}'
+    + 'table{width:100%;border-collapse:collapse;margin:12px 0;}'
+    + 'th{background:#f1f5f9;padding:6px 8px;text-align:left;font-size:10px;border:1px solid #d0d5dd;font-weight:600;}'
+    + 'td{padding:5px 8px;border:1px solid #d0d5dd;font-size:10px;}'
+    + '.r{text-align:right;font-variant-numeric:tabular-nums;}'
+    + '.co-section{margin-top:18px;}'
+    + '.co-title{font-size:13px;font-weight:700;margin-bottom:6px;padding:4px 8px;background:#f1f5f9;border-left:3px solid #2563eb;}'
+    + '.subtotal td{font-weight:700;background:#f8fafc;}'
+    + '.footer{margin-top:30px;text-align:center;font-size:10px;color:#999;border-top:1px solid #e2e8f0;padding-top:12px;}'
+    + '.company-info{text-align:right;font-size:10px;margin-top:5px;color:#666;}'
+    + '@media print{body{padding:15px 20px;}}'
+    + '</style></head><body>';
+
+  // ヘッダー
+  html += '<h1>支払手数料明細書</h1>';
+  html += '<div class="sub-title">'+ymLabel+'分</div>';
+  html += '<div class="header-info">';
+  html += '<div class="header-left">';
+  html += '<div class="to-name">'+dairiName+' 様</div><br>';
+  html += '<div style="margin-top:4px;">代理店番号: '+dairiNo+'</div>';
+  html += '</div>';
+  html += '<div class="header-right">';
+  html += '<div>発行日: '+issueDate+'</div>';
+  html += '<div style="margin-top:2px;">対象月: '+ymLabel+'</div>';
+  html += '<div class="company-info" style="margin-top:8px;font-weight:600;">株式会社Stooo</div>';
+  html += '</div></div>';
+
+  // 合計金額
+  html += '<div class="total-box">';
+  html += '<div class="total-label">お支払手数料合計</div>';
+  html += '<div class="total-amount">¥'+totalShare.toLocaleString()+'</div>';
+  html += '</div>';
+
+  // 電力会社別テーブル
+  Object.keys(byCo).forEach(function(co) {
+    var items = byCo[co];
+    var coTotal = items.reduce(function(s,m){ return s + (Number(m.dairiShare)||0); }, 0);
+
+    html += '<div class="co-section">';
+    html += '<div class="co-title">'+co+'（'+items.length+'件）</div>';
+    html += '<table><thead><tr><th>対象月</th><th>顧客名</th><th>料金メニュー</th><th class="r">使用量</th><th class="r">請求金額</th><th class="r">対象金額</th><th class="r">手数料</th></tr></thead><tbody>';
+
+    items.forEach(function(m) {
+      html += '<tr>'
+        + '<td>'+(m.dataMonth||'-')+'</td>'
+        + '<td style="font-weight:600;">'+(m.customerName||'-')+'</td>'
+        + '<td>'+(m.planName||'-')+'</td>'
+        + '<td class="r">'+(m.usage||'-')+'</td>'
+        + '<td class="r">'+(Number(m.billingAmount)?'¥'+Number(m.billingAmount).toLocaleString():'-')+'</td>'
+        + '<td class="r">'+(Number(m.targetAmount)?'¥'+Number(m.targetAmount).toLocaleString():'-')+'</td>'
+        + '<td class="r" style="font-weight:700;color:#7c3aed;">¥'+Number(m.dairiShare||0).toLocaleString()+'</td>'
+        + '</tr>';
+    });
+
+    html += '<tr class="subtotal"><td colspan="6" style="text-align:right;">小計</td><td class="r" style="color:#7c3aed;">¥'+coTotal.toLocaleString()+'</td></tr>';
+    html += '</tbody></table></div>';
+  });
+
+  // 合計行
+  html += '<table style="margin-top:15px;"><tr style="font-weight:900;font-size:13px;background:#f1f5f9;">'
+    + '<td style="border:2px solid #2563eb;padding:10px;">合計（'+data.length+'件）</td>'
+    + '<td class="r" style="border:2px solid #2563eb;padding:10px;color:#2563eb;font-size:16px;">¥'+totalShare.toLocaleString()+'</td></tr></table>';
+
+  // フッター
+  html += '<div class="footer">この明細書は株式会社Stooo 新電力管理システムより自動生成されました</div>';
+  html += '</body></html>';
+
+  // 新しいウィンドウで表示→印刷
+  var win = window.open('', '_blank');
+  win.document.write(html);
+  win.document.close();
+  // 少し待ってから印刷ダイアログ
+  setTimeout(function() { win.print(); }, 500);
+}
+
+// ============================================================
+// Init
+// ============================================================
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeMasterModal(); });
+</script>
+</body>
+</html>
