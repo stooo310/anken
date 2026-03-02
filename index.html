@@ -929,9 +929,16 @@ tbody tr:hover td { background: #f7f9ff; }
       <button class="close-btn" onclick="closeShijiModal()">×</button>
     </div>
     <div class="modal-body" id="shiji-body"></div>
-    <div class="modal-ft">
-      <button class="btn btn-ghost" onclick="closeShijiModal()">キャンセル</button>
-      <button class="btn btn-primary" onclick="generateShijiPdf()">📄 PDF出力</button>
+    <div id="shiji-draft-info" style="display:none;padding:8px 16px;background:var(--bg3);border-top:1px solid var(--border);font-size:11px;color:var(--text3);"></div>
+    <div class="modal-ft" style="justify-content:space-between;">
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost" onclick="closeShijiModal()">キャンセル</button>
+        <button class="btn btn-ghost" id="shiji-delete-draft-btn" onclick="deleteShijiDraft()" style="display:none;color:var(--danger);">🗑 下書き削除</button>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost" onclick="saveShijiDraft()" style="border-color:var(--accent);color:var(--accent);">💾 一時保存</button>
+        <button class="btn btn-primary" onclick="generateShijiPdf()">📄 PDF出力</button>
+      </div>
     </div>
   </div>
 </div>
@@ -957,7 +964,7 @@ tbody tr:hover td { background: #f7f9ff; }
       <div class="detail-name" id="detail-name"></div>
     </div>
     <div style="display:flex;gap:6px;align-items:center;">
-      <button class="btn btn-ghost btn-sm" id="detail-shiji-btn" onclick="openShijiModal()" title="工事指示書">📋 指示書</button>
+      <button class="btn btn-ghost btn-sm" id="detail-shiji-btn" onclick="openShijiModal()" title="工事指示書">📋 指示書<span id="detail-shiji-draft-badge" style="display:none;font-size:9px;margin-left:3px;background:#fef3c7;color:#92400e;padding:1px 4px;border-radius:3px;font-weight:600;">下書</span></button>
       <button class="btn btn-ghost btn-sm" id="detail-edit-btn" onclick="toggleDetailEditMode()">✏️ 編集</button>
       <button class="close-btn" onclick="closeDetail()">×</button>
     </div>
@@ -1268,6 +1275,9 @@ async function initApp() {
       // サーバーの設定をマージ
       Object.keys(settingsRes.data).forEach(function(k) { settingsData[k] = settingsRes.data[k]; });
     }
+
+    // 指示書下書きリスト取得
+    await loadShijiDraftList();
 
     // 権限に応じたUI制御
     applyPermissions();
@@ -2003,11 +2013,12 @@ function renderAnkenTable() {
       const priceVal = a.type === 'Stooory' ? a.price : (a.price || a.price);
       const contentVal = a.type === 'Stooory' ? (a.content||'-') : (a.teianContent||'-');
       let cells = '';
+      const draftBadge = hasShijiDraft(a.id) ? '<span title="指示書下書きあり" style="font-size:10px;margin-left:4px;vertical-align:middle;background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:4px;font-weight:600;">📋下書</span>' : '';
       if(isAll) {
         cells = `
           <td>${typePill(a.type)}</td>
           <td class="td-date">${fmtDate(a.juchuDate)}</td>
-          <td class="td-main">${a.kokyaku||'-'}</td>
+          <td class="td-main">${a.kokyaku||'-'}${draftBadge}</td>
           <td><span class="badge ${statusColor(a.status)}">${a.status}</span></td>
           <td class="td-sub">${a.keiyakuType||'-'}</td>
           <td class="td-sub">${a.tanto||'-'}</td>
@@ -2016,7 +2027,7 @@ function renderAnkenTable() {
       } else if(a.type==='工事') {
         cells = `
           <td class="td-date">${fmtDate(a.juchuDate)}</td>
-          <td class="td-main">${a.kokyaku||'-'}</td>
+          <td class="td-main">${a.kokyaku||'-'}${draftBadge}</td>
           <td><span class="badge ${statusColor(a.status)}">${a.status}</span></td>
           <td class="td-sub">${a.keiyakuType||'-'}</td>
           <td class="td-sub">${a.tanto||'-'}</td>
@@ -2026,7 +2037,7 @@ function renderAnkenTable() {
       } else if(a.type==='保守') {
         cells = `
           <td class="td-date">${fmtDate(a.juchuDate)}</td>
-          <td class="td-main">${a.kokyaku||'-'}</td>
+          <td class="td-main">${a.kokyaku||'-'}${draftBadge}</td>
           <td><span class="badge ${statusColor(a.status)}">${a.status}</span></td>
           <td class="td-sub">${a.keiyakuType||'-'}</td>
           <td class="td-sub">${a.tanto||'-'}</td>
@@ -2036,7 +2047,7 @@ function renderAnkenTable() {
       } else if(a.type==='そーだん') {
         cells = `
           <td class="td-date">${fmtDate(a.juchuDate)}</td>
-          <td class="td-main">${a.kokyaku||'-'}</td>
+          <td class="td-main">${a.kokyaku||'-'}${draftBadge}</td>
           <td><span class="badge ${statusColor(a.status)}">${a.status}</span></td>
           <td class="td-sub">${a.keiyakuType||'-'}</td>
           <td class="td-sub">${a.tanto||'-'}</td>
@@ -2046,7 +2057,7 @@ function renderAnkenTable() {
       } else if(a.type==='Stooory') {
         cells = `
           <td class="td-date">${fmtDate(a.juchuDate)}</td>
-          <td class="td-main">${a.kokyaku||'-'}</td>
+          <td class="td-main">${a.kokyaku||'-'}${draftBadge}</td>
           <td><span class="badge ${statusColor(a.status)}">${a.status}</span></td>
           <td class="td-sub">${a.tanto||'-'}</td>
           <td class="td-date">${fmtDate(a.kojiStart)}</td>
@@ -2108,6 +2119,9 @@ function openDetail(id) {
     document.getElementById('detail-shiji-btn').style.display = '';
   }
   document.getElementById('detail-mode-bar').style.display = 'none';
+  // 下書きバッジ表示
+  var draftBadge = document.getElementById('detail-shiji-draft-badge');
+  if (draftBadge) draftBadge.style.display = hasShijiDraft(id) ? 'inline' : 'none';
 }
 
 function renderDetailView(id) {
@@ -6315,6 +6329,8 @@ function openShijiModal() {
   document.getElementById('sh-kado-body').innerHTML = '';
   for (var i = 0; i < 3; i++) addShijiKadoRow();
   document.getElementById('shiji-modal').classList.add('open');
+  // 下書き自動読み込み
+  loadShijiDraft();
 }
 
 function closeShijiModal() {
@@ -6583,6 +6599,160 @@ function _getDcsData() {
     });
   });
   return units;
+}
+
+// ============================================================
+// 工事指示書 - 下書き保存/読み込み
+// ============================================================
+var shijiDraftIds = []; // 下書きが存在する案件IDのリスト
+
+// 下書きデータを収集
+function _collectShijiDraftData() {
+  var formData = _getShijiFormData();
+  var kadoRows = _getShijiKadoRows();
+  var dcsData = (document.getElementById('sh-ac') && document.getElementById('sh-ac').value === '有り') ? _getDcsData() : [];
+  return { form: formData, kado: kadoRows, dcs: dcsData };
+}
+
+// 下書きをフォームに復元
+function _restoreShijiDraft(draft) {
+  if (!draft || !draft.form) return;
+  var f = draft.form;
+  // フォームフィールド復元
+  var fields = ['keiyakuDate','dairiName','tanto','kokyaku','kokyakuKana','rep','repKana','addr','tel','gyoshu',
+    'yoyoCapacity','teianKw','denryoku','eigyosho','keikiNo','doryoku','custNo','kojiDate','kojiKibou',
+    'walbox','harigami','mujin','ac','tachiai','biko'];
+  fields.forEach(function(key) {
+    var el = document.getElementById('sh-' + key);
+    if (el && f[key] !== undefined) el.value = f[key];
+  });
+  // 稼働状況テーブル復元
+  if (draft.kado && draft.kado.length > 0) {
+    _shijiKadoCount = 0;
+    document.getElementById('sh-kado-body').innerHTML = '';
+    draft.kado.forEach(function(r) {
+      addShijiKadoRow();
+      var rows = document.querySelectorAll('#sh-kado-body tr');
+      var tr = rows[rows.length - 1];
+      if (tr) {
+        var nameEl = tr.querySelector('.sh-k-name'); if (nameEl) nameEl.value = r.name || '';
+        var qtyEl = tr.querySelector('.sh-k-qty'); if (qtyEl) qtyEl.value = r.qty || '';
+        var ampEl = tr.querySelector('.sh-k-amp'); if (ampEl) ampEl.value = r.amp || '';
+        var timeEl = tr.querySelector('.sh-k-time'); if (timeEl) timeEl.value = r.time || '';
+        var noteEl = tr.querySelector('.sh-k-note'); if (noteEl) noteEl.value = r.note || '';
+      }
+    });
+  }
+  // AC制御→DCS復元
+  toggleDcsSection();
+  if (draft.dcs && draft.dcs.length > 0 && f.ac === '有り') {
+    document.getElementById('sh-ac-count').value = draft.dcs.length;
+    renderDcsUnits();
+    var makers = document.querySelectorAll('.dcs-maker');
+    draft.dcs.forEach(function(u, i) {
+      var parent = makers[i] ? makers[i].closest('div[style*="border"]') : null;
+      if (!parent) return;
+      makers[i].value = u.maker || '';
+      var kw = parent.querySelector('.dcs-output-kw'); if (kw) kw.value = u.outputKw || '';
+      var a = parent.querySelector('.dcs-output-a'); if (a) a.value = u.outputA || '';
+      var model = parent.querySelector('.dcs-model'); if (model) model.value = u.model || '';
+      var indoor = parent.querySelector('.dcs-indoor'); if (indoor) indoor.value = u.indoor || '';
+      var outdoor = parent.querySelector('.dcs-outdoor'); if (outdoor) outdoor.value = u.outdoor || '';
+    });
+  }
+}
+
+// 一時保存
+async function saveShijiDraft() {
+  var ankenId = detailCurrentId;
+  if (!ankenId) return;
+  var draftData = _collectShijiDraftData();
+  var userName = currentUser ? (currentUser.tantoName || currentUser.username) : '';
+  try {
+    var res = await apiCall('saveShijiDraft', {
+      ankenId: String(ankenId),
+      draftData: JSON.stringify(draftData),
+      savedBy: userName
+    });
+    if (res.ok) {
+      showToast('💾 下書きを保存しました');
+      // 下書きリストに追加
+      if (!shijiDraftIds.includes(String(ankenId))) {
+        shijiDraftIds.push(String(ankenId));
+      }
+      _updateShijiDraftInfo(userName, new Date().toLocaleString('ja-JP'));
+      renderAnkenTable(); // バッジ更新
+    } else {
+      showToast('⚠️ 保存失敗: ' + (res.error || '不明なエラー'));
+    }
+  } catch (e) {
+    showToast('⚠️ 通信エラー: ' + e.message);
+  }
+}
+
+// 下書き読み込み（モーダルopen時に自動呼び出し）
+async function loadShijiDraft() {
+  var ankenId = detailCurrentId;
+  if (!ankenId) return;
+  document.getElementById('shiji-draft-info').style.display = 'none';
+  document.getElementById('shiji-delete-draft-btn').style.display = 'none';
+  try {
+    var res = await apiCall('loadShijiDraft', { ankenId: String(ankenId) });
+    if (res.ok && res.data) {
+      var draft = typeof res.data.draftData === 'string' ? JSON.parse(res.data.draftData) : res.data.draftData;
+      _restoreShijiDraft(draft);
+      _updateShijiDraftInfo(res.data.savedBy, res.data.savedAt);
+      showToast('📋 下書きを読み込みました');
+    }
+  } catch (e) {
+    console.log('下書き読み込みスキップ:', e.message);
+  }
+}
+
+// 下書き情報を表示
+function _updateShijiDraftInfo(savedBy, savedAt) {
+  var infoEl = document.getElementById('shiji-draft-info');
+  infoEl.innerHTML = '📝 下書き保存済み: ' + (savedBy || '-') + ' / ' + (savedAt || '-');
+  infoEl.style.display = '';
+  document.getElementById('shiji-delete-draft-btn').style.display = '';
+}
+
+// 下書き削除
+async function deleteShijiDraft() {
+  var ankenId = detailCurrentId;
+  if (!ankenId) return;
+  if (!confirm('この案件の下書きを削除しますか？')) return;
+  try {
+    var res = await apiCall('deleteShijiDraft', { ankenId: String(ankenId) });
+    if (res.ok) {
+      showToast('🗑 下書きを削除しました');
+      shijiDraftIds = shijiDraftIds.filter(function(id) { return id !== String(ankenId); });
+      document.getElementById('shiji-draft-info').style.display = 'none';
+      document.getElementById('shiji-delete-draft-btn').style.display = 'none';
+      renderAnkenTable(); // バッジ更新
+    } else {
+      showToast('⚠️ 削除失敗');
+    }
+  } catch (e) {
+    showToast('⚠️ 通信エラー');
+  }
+}
+
+// 下書きリスト取得（initApp時に呼び出し）
+async function loadShijiDraftList() {
+  try {
+    var res = await apiCall('getShijiDraftList');
+    if (res.ok && res.data) {
+      shijiDraftIds = res.data.map(function(id) { return String(id); });
+    }
+  } catch (e) {
+    console.log('下書きリスト取得スキップ:', e.message);
+  }
+}
+
+// 案件に下書きがあるか判定
+function hasShijiDraft(ankenId) {
+  return shijiDraftIds.includes(String(ankenId));
 }
 
 // フォームデータ取得（共通）
