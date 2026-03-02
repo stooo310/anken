@@ -1223,6 +1223,11 @@ async function doLogin() {
   try {
     var res = await apiCall('login', { username: user, password: pass });
     if (!res.ok) { errEl.textContent = res.error || 'ユーザー名またはパスワードが正しくありません'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'ログイン'; return; }
+    // 代理店ユーザーは案件管理にログイン不可
+    if (res.user && (res.user.role === 'dairi' || res.user.role === 'powerDairi')) {
+      errEl.textContent = '代理店アカウントでは案件管理にログインできません。代理店ポータルをご利用ください。';
+      errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'ログイン'; return;
+    }
     authToken = res.token;
     currentUser = res.user;
     saveSession();
@@ -1293,9 +1298,9 @@ function applyPermissions() {
   var navSettings = document.getElementById('nav-settings');
   if (navSettings) navSettings.style.display = (role === 'admin') ? '' : 'none';
 
-  // 結果手当: adminのみ
+  // 結果手当: admin, memberのみ（managerは見せない）
   var navHosei = document.getElementById('nav-hosei');
-  if (navHosei) navHosei.style.display = (role === 'admin') ? '' : 'none';
+  if (navHosei) navHosei.style.display = (role === 'admin' || role === 'member') ? '' : 'none';
 
   // CSVインポート: admin, managerのみ
   var csvImportBtn = document.querySelector('[onclick="openCsvModal()"]');
@@ -1321,7 +1326,12 @@ function applyPermissions() {
 // 自動ログイン試行
 loadSession();
 if (authToken && currentUser) {
-  initApp();
+  // 代理店ユーザーがsessionStorageに残っている場合はログアウト
+  if (currentUser.role === 'dairi' || currentUser.role === 'powerDairi') {
+    doLogout();
+  } else {
+    initApp();
+  }
 } else {
   document.getElementById('login-screen').classList.remove('hidden');
 }
