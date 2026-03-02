@@ -167,6 +167,7 @@ tbody tr:hover td { background: #f7f9ff; }
   width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 7px;
   padding: 9px 12px; color: var(--text); font-size: 13px; font-family: inherit; outline: none; transition: border-color .15s;
 }
+.form-group input::placeholder, .form-group textarea::placeholder { color: #c0c8d4; font-style: italic; }
 .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--accent); background: #fff; }
 .form-group select option { background: #fff; }
 .form-group textarea { resize: vertical; min-height: 80px; }
@@ -1292,6 +1293,10 @@ function applyPermissions() {
   var navSettings = document.getElementById('nav-settings');
   if (navSettings) navSettings.style.display = (role === 'admin') ? '' : 'none';
 
+  // 結果手当: adminのみ
+  var navHosei = document.getElementById('nav-hosei');
+  if (navHosei) navHosei.style.display = (role === 'admin') ? '' : 'none';
+
   // CSVインポート: admin, managerのみ
   var csvImportBtn = document.querySelector('[onclick="openCsvModal()"]');
   if (csvImportBtn) csvImportBtn.style.display = (role === 'admin' || role === 'manager') ? '' : 'none';
@@ -1299,6 +1304,10 @@ function applyPermissions() {
   // CSVエクスポート: adminのみ
   var csvExportBtn = document.querySelector('[onclick="openExportModal()"]');
   if (csvExportBtn) csvExportBtn.style.display = (role === 'admin') ? '' : 'none';
+
+  // コピペ取込ボタン: admin, managerのみ
+  var gacchankoBtn = document.querySelector('[onclick="openGacchankoModal()"]');
+  if (gacchankoBtn) gacchankoBtn.style.display = (role === 'admin' || role === 'manager') ? '' : 'none';
 
   // 新規案件ボタン: admin, managerのみ
   var newAnkenBtn = document.querySelector('[onclick="openNewModal()"]');
@@ -1529,16 +1538,16 @@ const FORM_SECTIONS = [
   {
     key: 'sec-kokyaku', label: '🏢 顧客情報', open: true,
     fields: [
-      { id:'f-kokyaku',    label:'社名 *',           type:'text', key:'kokyaku',    placeholder:'株式会社〇〇', full:true },
-      { id:'f-kokyaku-kana',label:'社名フリガナ',    type:'text', key:'kokyakuKana',placeholder:'カブシキガイシャ〇〇', full:true },
-      { id:'f-rep',        label:'代表者名',          type:'text', key:'rep',        placeholder:'山田 太郎' },
-      { id:'f-rep-kana',   label:'代表者フリガナ',   type:'text', key:'repKana',    placeholder:'ヤマダ タロウ' },
-      { id:'f-tel',        label:'電話',             type:'text', key:'tel',        placeholder:'03-1234-5678' },
-      { id:'f-gyoshu',     label:'業種',             type:'text', key:'gyoshu',     placeholder:'業種' },
+      { id:'f-kokyaku',    label:'社名 *',           type:'text', key:'kokyaku',    placeholder:'例：株式会社〇〇', full:true },
+      { id:'f-kokyaku-kana',label:'社名フリガナ',    type:'text', key:'kokyakuKana',placeholder:'例：カブシキガイシャ〇〇', full:true },
+      { id:'f-rep',        label:'代表者名',          type:'text', key:'rep',        placeholder:'例：山田 太郎' },
+      { id:'f-rep-kana',   label:'代表者フリガナ',   type:'text', key:'repKana',    placeholder:'例：ヤマダ タロウ' },
+      { id:'f-tel',        label:'電話',             type:'text', key:'tel',        placeholder:'例：03-1234-5678' },
+      { id:'f-gyoshu',     label:'業種',             type:'text', key:'gyoshu',     placeholder:'例：飲食業' },
       { id:'f-birthday',   label:'生年月日',          type:'date', key:'birthday' },
-      { id:'f-zip',        label:'〒',               type:'text', key:'zip',        placeholder:'000-0000' },
-      { id:'f-addr1',      label:'申込住所',          type:'text', key:'addr1',      placeholder:'東京都〇〇区...', full:true },
-      { id:'f-addr2',      label:'申込住所②',        type:'text', key:'addr2',      placeholder:'建物名・部屋番号', full:true },
+      { id:'f-zip',        label:'〒',               type:'text', key:'zip',        placeholder:'例：000-0000' },
+      { id:'f-addr1',      label:'申込住所',          type:'text', key:'addr1',      placeholder:'例：東京都〇〇区...', full:true },
+      { id:'f-addr2',      label:'申込住所②',        type:'text', key:'addr2',      placeholder:'例：〇〇ビル 201号', full:true },
       { id:'f-data',       label:'データ（Google Drive URL）', type:'url', key:'data', placeholder:'https://drive.google.com/...', full:true },
     ]
   },
@@ -1548,12 +1557,12 @@ const FORM_SECTIONS = [
       { id:'f-teian-content', label:'提案内容（複数選択可）', type:'multiselect-other', key:'teianContent',
         options:['電ブレ','電ブレ(レン)','電ブレ(高低)','AC制御','配線工事','工事依頼','新電力(おしごと)','新電力(テラス)','新電力(他)','保守契約','AC','LED','太陽光','蓄電池','EM','節水器具','ウォルB','ステB','リプレイス','その他'], full:true },
       { id:'f-teian-count',   label:'個数',              type:'number', key:'teianCount',   placeholder:'0' },
-      { id:'f-denryoku',    label:'電力会社',         type:'text',     key:'denryoku',    placeholder:'東京電力など' },
-      { id:'f-yoyo',        label:'契約容量',          type:'text',     key:'yoyoCapacity', placeholder:'35kW' },
-      { id:'f-teian-kw',    label:'提案容量',          type:'text',     key:'teianKw',     placeholder:'17kW' },
+      { id:'f-denryoku',    label:'電力会社',         type:'text',     key:'denryoku',    placeholder:'例：東京電力' },
+      { id:'f-yoyo',        label:'契約容量',          type:'text',     key:'yoyoCapacity', placeholder:'例：35kW' },
+      { id:'f-teian-kw',    label:'提案容量',          type:'text',     key:'teianKw',     placeholder:'例：17kW' },
       { id:'f-keiyaku-type',label:'契約種別',          type:'select',   key:'keiyakuType',
         options:['','ローン','現金','リース','レンタル','口座振替','分割','カード','その他'] },
-      { id:'f-period',      label:'期間',             type:'text',     key:'period',      placeholder:'84ヶ月' },
+      { id:'f-period',      label:'期間',             type:'text',     key:'period',      placeholder:'例：84ヶ月' },
       { id:'f-monthly',     label:'月額（税込）',      type:'number',   key:'monthly',     placeholder:'0' },
       { id:'f-ripu-jiki',   label:'リプ時期',          type:'text',     key:'ripuJiki',    placeholder:'' },
       { id:'f-ripu-umu',    label:'アップセル',        type:'select',   key:'ripuUmu',
@@ -1570,10 +1579,10 @@ const FORM_SECTIONS = [
   {
     key: 'sec-setchi', label: '📍 設置情報', open: false,
     fields: [
-      { id:'f-setchi-shop',   label:'設置先：店舗',  type:'text', key:'setchiShop',    placeholder:'店舗名', full:true },
-      { id:'f-koji-addr',     label:'設置先住所',    type:'text', key:'kojiAddr',      placeholder:'設置先住所', full:true },
-      { id:'f-setchi-contact',label:'設置先連絡',    type:'text', key:'setchiContact', placeholder:'連絡先' },
-      { id:'f-setchi-kw',     label:'設置kW',        type:'text', key:'setchiKw',      placeholder:'17kW' },
+      { id:'f-setchi-shop',   label:'設置先：店舗',  type:'text', key:'setchiShop',    placeholder:'例：〇〇店', full:true },
+      { id:'f-koji-addr',     label:'設置先住所',    type:'text', key:'kojiAddr',      placeholder:'例：東京都〇〇区...', full:true },
+      { id:'f-setchi-contact',label:'設置先連絡',    type:'text', key:'setchiContact', placeholder:'例：03-0000-0000' },
+      { id:'f-setchi-kw',     label:'設置kW',        type:'text', key:'setchiKw',      placeholder:'例：17kW' },
       { id:'f-status2', label:'ステータス②（工事管理に追加）', type:'select', key:'status2',
         options:['','工事','保守','そーだん','Stooory','対応中','完了','キャンセル','その他'] },
     ]
@@ -1591,8 +1600,8 @@ const FORM_SECTIONS = [
           return `${h}:${m}`;
         })] },
       { id:'f-hatchu-date',label:'発注日',       type:'date',   key:'hatchuDate' },
-      { id:'f-koji-co',    label:'工事会社',     type:'text',   key:'kojiCo',    placeholder:'施工会社名' },
-      { id:'f-zairyo-co',  label:'材料会社',     type:'text',   key:'zairyoCo',  placeholder:'材料会社名' },
+      { id:'f-koji-co',    label:'工事会社',     type:'text',   key:'kojiCo',    placeholder:'例：〇〇電気' },
+      { id:'f-zairyo-co',  label:'材料会社',     type:'text',   key:'zairyoCo',  placeholder:'例：〇〇商会' },
       { id:'f-koji-kanryo',label:'工事完了日',   type:'date',   key:'kojiKanryo' },
       { id:'f-shunko-date',label:'竣工調査日',   type:'date',   key:'shunkoDate' },
       { id:'f-shinchu',    label:'新品・中古',   type:'select', key:'shinchu',   options:['','新品','中古'] },
@@ -1612,7 +1621,7 @@ const FORM_SECTIONS = [
       { id:'f-koji-hi',    label:'工事費',            type:'number-calc', key:'kojiHi',    placeholder:'0', calcType:'koji' },
       { id:'f-zaiko',      label:'材工（税込）',       type:'number-calc', key:'zaiko', placeholder:'0', calcType:'zaiko' },
       { id:'f-shinpan',    label:'信販など手数料',     type:'number-calc', key:'shinpan',   placeholder:'0', calcType:'shinpan' },
-      { id:'f-shinpan-co', label:'信販会社',           type:'text',   key:'shinpanCo',  placeholder:'例：オリコ、ジャックス等' },
+      { id:'f-shinpan-co', label:'信販会社',           type:'text',   key:'shinpanCo',  placeholder:'例：オリコ、ジャックス' },
       { id:'f-shinsa',     label:'審査結果',           type:'select', key:'shinsaResult',
         options:['','未申請','審査中','OK','NG'] },
       { id:'f-keisan',     label:'計算対象金額',       type:'number-calc', key:'keisan',    placeholder:'0', calcType:'keisan' },
@@ -1628,7 +1637,7 @@ const FORM_SECTIONS = [
     fields: [
       { id:'f-hoshu-reki',    label:'保守歴：有無',   type:'select', key:'hoshuReki',
         options:['','あり','なし'] },
-      { id:'f-hoshu-hi',      label:'保守費用',       type:'number', key:'hoshuHi',       placeholder:'0' },
+      { id:'f-hoshu-hi',      label:'保守月額',       type:'number', key:'hoshuHi',       placeholder:'0' },
       { id:'f-hoshu-co',      label:'保守対応会社',   type:'text',   key:'hoshuCo',        placeholder:'' },
       { id:'f-hoshu-datetime',label:'保守日時',       type:'text',   key:'hoshuDatetime',  placeholder:'' },
       { id:'f-hoshu-kin',     label:'保守金額',       type:'number', key:'hoshuKin',       placeholder:'0' },
@@ -1659,20 +1668,20 @@ const FORM_SECTIONS = [
 const FORM_FIELDS = {
   Stooory: [
     { section:'顧客情報' },
-    { id:'f-kokyaku',    label:'顧客名（社名）*', type:'text', placeholder:'株式会社〇〇', full:false },
-    { id:'f-kokyaku-kana',label:'社名フリガナ',   type:'text', placeholder:'カブシキガイシャ〇〇', full:false },
-    { id:'f-rep',        label:'代表者名',         type:'text', placeholder:'山田 太郎', full:false },
-    { id:'f-rep-kana',   label:'代表者フリガナ',  type:'text', placeholder:'ヤマダ タロウ', full:false },
-    { id:'f-tel',        label:'電話',            type:'text', placeholder:'03-1234-5678', full:false },
-    { id:'f-zip',        label:'〒',              type:'text', placeholder:'000-0000', full:false },
+    { id:'f-kokyaku',    label:'顧客名（社名）*', type:'text', placeholder:'例：株式会社〇〇', full:false },
+    { id:'f-kokyaku-kana',label:'社名フリガナ',   type:'text', placeholder:'例：カブシキガイシャ〇〇', full:false },
+    { id:'f-rep',        label:'代表者名',         type:'text', placeholder:'例：山田 太郎', full:false },
+    { id:'f-rep-kana',   label:'代表者フリガナ',  type:'text', placeholder:'例：ヤマダ タロウ', full:false },
+    { id:'f-tel',        label:'電話',            type:'text', placeholder:'例：03-1234-5678', full:false },
+    { id:'f-zip',        label:'〒',              type:'text', placeholder:'例：000-0000', full:false },
     { id:'f-data',       label:'データ（Google Drive URL）', type:'url', placeholder:'https://drive.google.com/...', full:true },
-    { id:'f-addr1',      label:'申込住所',         type:'text', placeholder:'東京都〇〇区...', full:true },
-    { id:'f-addr2',      label:'申込住所②',       type:'text', placeholder:'建物名・部屋番号', full:true },
+    { id:'f-addr1',      label:'申込住所',         type:'text', placeholder:'例：東京都〇〇区...', full:true },
+    { id:'f-addr2',      label:'申込住所②',       type:'text', placeholder:'例：〇〇ビル 201号', full:true },
     { section:'店舗情報' },
-    { id:'f-shop-name',  label:'店舗名',           type:'text', placeholder:'店舗名', full:false },
-    { id:'f-shop-zip',   label:'店舗〒',           type:'text', placeholder:'000-0000', full:false },
+    { id:'f-shop-name',  label:'店舗名',           type:'text', placeholder:'例：〇〇店', full:false },
+    { id:'f-shop-zip',   label:'店舗〒',           type:'text', placeholder:'例：000-0000', full:false },
     { id:'f-shop-addr1', label:'店舗住所',         type:'text', placeholder:'店舗住所', full:true },
-    { id:'f-shop-addr2', label:'店舗住所②',       type:'text', placeholder:'建物名・部屋番号', full:true },
+    { id:'f-shop-addr2', label:'店舗住所②',       type:'text', placeholder:'例：〇〇ビル 201号', full:true },
     { id:'f-shop-tel',   label:'店舗連絡先',       type:'text', placeholder:'店舗電話番号', full:false },
     { section:'案件情報' },
     { id:'f-tanto',      label:'担当者',           type:'text', placeholder:'担当者名', full:false },
@@ -2252,7 +2261,7 @@ function renderDetailView(id) {
 
   html += buildDetailAccSection('🛡 保守情報', false, [
     ['新品・中古', a.shinchu||'-'], ['保守歴：有無', a.hoshuReki||'-'],
-    ['保守費用', v(a.hoshuHi,true)], ['保守対応会社', a.hoshuCo||'-'],
+    ['保守月額', v(a.hoshuHi,true)], ['保守対応会社', a.hoshuCo||'-'],
     ['保守日時', a.hoshuDatetime||'-'], ['保守金額', v(a.hoshuKin,true)],
     ['保守契約：有無', a.hoshuKeiyaku||'-'], ['初回引落日', fmtDate(a.hoshuDate)],
   ]);
@@ -3291,7 +3300,7 @@ function renderKokyaku() {
     const cases = ankenList.filter(a=>a.kokyaku===k.name);
     const typeCounts = {};
     cases.forEach(a=>{ typeCounts[a.type]=(typeCounts[a.type]||0)+1; });
-    return `<div class="customer-card" onclick="openKokyakuDetail(${k.id})">
+    return `<div class="customer-card" onclick="openKokyakuDetail('${k.id}')">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
         <div class="cust-name">${k.name}</div>
         <span style="font-size:10px;font-weight:700;color:var(--accent);font-family:'DM Sans',sans-serif;background:#eff6ff;padding:2px 7px;border-radius:4px;">${k.custNo||'-'}</span>
@@ -3308,7 +3317,7 @@ function renderKokyaku() {
 }
 
 function openKokyakuDetail(id) {
-  const k = kokyakuList.find(x=>x.id===id);
+  const k = kokyakuList.find(x=>String(x.id)===String(id));
   if(!k) return;
   document.getElementById('kd-name').textContent = k.name;
   const cases = ankenList.filter(a=>a.kokyaku===k.name);
@@ -3338,8 +3347,8 @@ function openKokyakuDetail(id) {
   </div>`;
   html += `<div class="detail-section">
     <div style="display:flex;gap:8px;">
-      <button class="btn btn-ghost btn-sm" style="flex:1;" onclick="openKokyakuEditModal(${k.id})">✏️ 編集</button>
-      <button class="btn btn-danger btn-sm" onclick="deleteKokyaku(${k.id})">🗑</button>
+      <button class="btn btn-ghost btn-sm" style="flex:1;" onclick="openKokyakuEditModal('${k.id}')">✏️ 編集</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteKokyaku('${k.id}')">🗑</button>
     </div>
   </div>`;
   document.getElementById('kokyaku-detail-body').innerHTML = html;
@@ -3362,7 +3371,7 @@ function openKokyakuModal() {
 }
 
 function openKokyakuEditModal(id) {
-  const k = kokyakuList.find(x=>x.id===id);
+  const k = kokyakuList.find(x=>String(x.id)===String(id));
   if(!k) return;
   editingKokyakuId = id;
   document.getElementById('km-title').textContent = '顧客編集';
@@ -3384,7 +3393,7 @@ function saveKokyakuForm() {
   const name = document.getElementById('kf-name').value.trim();
   if(!name) { alert('社名は必須です。'); return; }
   const obj = { id: editingKokyakuId||Date.now(), name, nameKana:document.getElementById('kf-name-kana').value.trim(), rep:document.getElementById('kf-rep').value.trim(), repKana:document.getElementById('kf-rep-kana').value.trim(), tel:document.getElementById('kf-tel').value.trim(), zip:document.getElementById('kf-zip').value.trim(), addr1:document.getElementById('kf-addr1').value.trim(), addr2:document.getElementById('kf-addr2').value.trim(), memo:document.getElementById('kf-memo').value.trim() };
-  if(editingKokyakuId) { const i=kokyakuList.findIndex(x=>x.id===editingKokyakuId); kokyakuList[i]=obj; }
+  if(editingKokyakuId) { const i=kokyakuList.findIndex(x=>String(x.id)===String(editingKokyakuId)); kokyakuList[i]=obj; }
   else { kokyakuList.push(obj); }
   saveKokyakuData(); saveKokyakuSingle(obj); closeKokyakuModal(); renderKokyaku();
 }
@@ -3397,7 +3406,7 @@ function deleteKokyaku(id) {
 }
 function confirmDeleteKokyakuYes() {
   if(_pendingDeleteKokyakuId !== null) {
-    kokyakuList = kokyakuList.filter(x=>x.id!==_pendingDeleteKokyakuId);
+    kokyakuList = kokyakuList.filter(x=>String(x.id)!==String(_pendingDeleteKokyakuId));
     saveKokyakuData(); document.getElementById('kokyaku-panel').classList.remove('open'); renderKokyaku();
     _pendingDeleteKokyakuId = null;
   }
@@ -5235,7 +5244,7 @@ function parseJsonPreview(jsonRows) {
     '仲介手数料（税込）':'chukai','仲介手数料(税込)':'chukai','仲介手数料':'chukai',
     '入金額（税込）':'nyukin','入金額(税込)':'nyukin','入金額':'nyukin',
     '入金日':'nyukinDate','歩合完了':'buai',
-    '新品・中古':'shinchu','保守歴：有無':'hoshuReki','保守費用':'hoshuHi',
+    '新品・中古':'shinchu','保守歴：有無':'hoshuReki','保守月額':'hoshuHi',
     '保守対応会社':'hoshuCo','保守日時':'hoshuDatetime','保守金額':'hoshuKin',
     '保守契約：有無':'hoshuKeiyaku',
     'リプ：有無':'ripuUmu','アップセル':'ripuUmu','粗利':'ripuArari',
@@ -5367,7 +5376,7 @@ function parseCsvPreview(text) {
     '仲介手数料（税込）':'chukai','仲介手数料(税込)':'chukai','仲介手数料':'chukai',
     '入金額（税込）':'nyukin','入金額(税込)':'nyukin','入金額':'nyukin',
     '入金日':'nyukinDate','歩合完了':'buai',
-    '新品・中古':'shinchu','保守歴：有無':'hoshuReki','保守費用':'hoshuHi',
+    '新品・中古':'shinchu','保守歴：有無':'hoshuReki','保守月額':'hoshuHi',
     '保守対応会社':'hoshuCo','保守日時':'hoshuDatetime','保守金額':'hoshuKin',
     '保守契約：有無':'hoshuKeiyaku',
     'リプ：有無':'ripuUmu','粗利':'ripuArari',
@@ -5615,7 +5624,7 @@ function downloadSampleCsv() {
       ['歩合完了',        '未',           'dropdown', ['済','未']],
       ['新品・中古',      '新品',         'dropdown', ['新品','中古']],
       ['保守歴：有無',    '無',           'dropdown', ['有','無']],
-      ['保守費用',        '',             'text'],
+      ['保守月額',        '',             'text'],
       ['保守対応会社',    '',             'text'],
       ['保守日時',        '',             'date'],
       ['保守金額',        '',             'text'],
@@ -5731,7 +5740,7 @@ const EXPORT_COLS = [
   ['price','物件価格（税込）'],['zairyoHi','材料費'],['kojiHi','工事費'],['zaiko','材工（税込）'],
   ['shinpan','信販など手数料'],['shinpanCo','信販会社'],['shinsaResult','審査結果'],['keisan','計算対象金額'],['chukai','仲介手数料（税込）'],
   ['nyukin','入金額（税込）'],['nyukinDate','入金日'],['hoshuDate','初回引落日'],['buai','歩合完了'],
-  ['hoshuReki','保守歴：有無'],['hoshuHi','保守費用'],['hoshuCo','保守対応会社'],
+  ['hoshuReki','保守歴：有無'],['hoshuHi','保守月額'],['hoshuCo','保守対応会社'],
   ['hoshuDatetime','保守日時'],['hoshuKin','保守金額'],['hoshuKeiyaku','保守契約：有無'],
   ['ripuZairyo','材料③'],['ripuKoji','工事③'],['ripuSonota','その他②'],
   ['ripuKotsu','交通費②'],['ripuArari','粗利'],
