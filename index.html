@@ -3311,9 +3311,9 @@ function renderKokyaku() {
     const cases = ankenList.filter(a=>a.kokyaku===k.name);
     const typeCounts = {};
     cases.forEach(a=>{ typeCounts[a.type]=(typeCounts[a.type]||0)+1; });
-    // 一意ID: id → custNo → index をフォールバック
-    const uid = k.id || k.custNo || idx;
-    return `<div class="customer-card" onclick="openKokyakuDetail('${uid}')">
+    // kokyakuList全体のインデックスで確実に特定
+    const realIdx = kokyakuList.indexOf(k);
+    return `<div class="customer-card" onclick="openKokyakuDetail(${realIdx})">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
         <div class="cust-name">${k.name}</div>
         <span style="font-size:10px;font-weight:700;color:var(--accent);font-family:'DM Sans',sans-serif;background:#eff6ff;padding:2px 7px;border-radius:4px;">${k.custNo||'-'}</span>
@@ -3329,11 +3329,8 @@ function renderKokyaku() {
   }).join('');
 }
 
-function openKokyakuDetail(id) {
-  const idStr = String(id);
-  const k = kokyakuList.find(x=>String(x.id)===idStr) 
-         || kokyakuList.find(x=>String(x.custNo)===idStr)
-         || kokyakuList[Number(idStr)];
+function openKokyakuDetail(idx) {
+  const k = kokyakuList[idx];
   if(!k) return;
   document.getElementById('kd-name').textContent = k.name;
   const cases = ankenList.filter(a=>a.kokyaku===k.name);
@@ -3363,8 +3360,8 @@ function openKokyakuDetail(id) {
   </div>`;
   html += `<div class="detail-section">
     <div style="display:flex;gap:8px;">
-      <button class="btn btn-ghost btn-sm" style="flex:1;" onclick="openKokyakuEditModal('${k.id||k.custNo}')">✏️ 編集</button>
-      <button class="btn btn-danger btn-sm" onclick="deleteKokyaku('${k.id||k.custNo}')">🗑</button>
+      <button class="btn btn-ghost btn-sm" style="flex:1;" onclick="openKokyakuEditModal(${kokyakuList.indexOf(k)})">✏️ 編集</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteKokyaku(${kokyakuList.indexOf(k)})">🗑</button>
     </div>
   </div>`;
   document.getElementById('kokyaku-detail-body').innerHTML = html;
@@ -3386,13 +3383,10 @@ function openKokyakuModal() {
   document.getElementById('kokyaku-modal').classList.add('open');
 }
 
-function openKokyakuEditModal(id) {
-  const idStr = String(id);
-  const k = kokyakuList.find(x=>String(x.id)===idStr)
-         || kokyakuList.find(x=>String(x.custNo)===idStr)
-         || kokyakuList[Number(idStr)];
+function openKokyakuEditModal(idx) {
+  const k = kokyakuList[idx];
   if(!k) return;
-  editingKokyakuId = id;
+  editingKokyakuId = idx;
   document.getElementById('km-title').textContent = '顧客編集';
   document.getElementById('kf-name').value = k.name||'';
   document.getElementById('kf-name-kana').value = k.nameKana||'';
@@ -3412,7 +3406,7 @@ function saveKokyakuForm() {
   const name = document.getElementById('kf-name').value.trim();
   if(!name) { alert('社名は必須です。'); return; }
   const obj = { id: editingKokyakuId||Date.now(), name, nameKana:document.getElementById('kf-name-kana').value.trim(), rep:document.getElementById('kf-rep').value.trim(), repKana:document.getElementById('kf-rep-kana').value.trim(), tel:document.getElementById('kf-tel').value.trim(), zip:document.getElementById('kf-zip').value.trim(), addr1:document.getElementById('kf-addr1').value.trim(), addr2:document.getElementById('kf-addr2').value.trim(), memo:document.getElementById('kf-memo').value.trim() };
-  if(editingKokyakuId) { const eid=String(editingKokyakuId); const i=kokyakuList.findIndex(x=>String(x.id)===eid||String(x.custNo)===eid); if(i>=0) kokyakuList[i]=obj; }
+  if(editingKokyakuId !== null && editingKokyakuId !== undefined) { kokyakuList[editingKokyakuId]=obj; }
   else { kokyakuList.push(obj); }
   saveKokyakuData(); saveKokyakuSingle(obj); closeKokyakuModal(); renderKokyaku();
 }
@@ -3425,8 +3419,7 @@ function deleteKokyaku(id) {
 }
 function confirmDeleteKokyakuYes() {
   if(_pendingDeleteKokyakuId !== null) {
-    const delId = String(_pendingDeleteKokyakuId);
-    kokyakuList = kokyakuList.filter(x=>String(x.id)!==delId && String(x.custNo)!==delId);
+    if(_pendingDeleteKokyakuId !== null && _pendingDeleteKokyakuId >= 0) kokyakuList.splice(_pendingDeleteKokyakuId, 1);
     saveKokyakuData(); document.getElementById('kokyaku-panel').classList.remove('open'); renderKokyaku();
     _pendingDeleteKokyakuId = null;
   }
