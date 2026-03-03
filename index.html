@@ -1279,6 +1279,9 @@ async function initApp() {
     // 指示書下書きリスト取得
     await loadShijiDraftList();
 
+    // 新電力：担当者別月次手数料取得（POWER MGR連携）
+    await loadPowerCommission();
+
     // 権限に応じたUI制御
     applyPermissions();
 
@@ -4005,8 +4008,9 @@ function buildKekkaAnkenDetail(shotList, rentalList, shindenTotal, yen) {
 
   // 新電力
   if (shindenTotal > 0) {
-    html += '<div style="margin-top:14px;"><div style="font-size:12px;font-weight:700;color:#d97706;margin-bottom:4px;">⚡ 新電力</div>';
-    html += '<div style="font-size:14px;font-weight:700;color:#d97706;text-align:right;">' + yen(shindenTotal) + '</div></div>';
+    html += '<div style="margin-top:14px;"><div style="font-size:12px;font-weight:700;color:#d97706;margin-bottom:4px;">⚡ 新電力（POWER MGR連携）</div>';
+    html += '<div style="font-size:14px;font-weight:700;color:#d97706;">' + yen(shindenTotal) + '</div>';
+    html += '<div style="font-size:11px;color:var(--text3);margin-top:4px;">※ 案件詳細はPOWER MGRで確認してください</div></div>';
   }
 
   html += '</div>';
@@ -4191,10 +4195,16 @@ function renderMemberHendouhiTable() {
   var thStyle = 'padding:6px 4px;text-align:center;font-size:11px;color:var(--text3);';
   var tdStyle = 'padding:4px 2px;text-align:center;';
 
-  // 新電力手数料行
+  // 新電力手数料行（POWER MGR連携 - 自動取得のため手入力欄なし）
   var rowsShindenryoku = '<tr style="border-bottom:1px solid var(--border);">'
     + '<td style="padding:6px 10px;font-size:12px;white-space:nowrap;background:var(--bg2);font-weight:600;">⚡ 新電力手数料</td>'
-    + months.map(function(mo){ return '<td style="' + tdStyle + '">' + memberVarInp(i, 'shindenryoku', mo, '0') + '</td>'; }).join('')
+    + months.map(function(mo){
+        var ym2 = yr + '-' + String(mo).padStart(2,'0');
+        var pd = getPowerCommissionForMember(m.name, ym2);
+        var dispVal = pd.total ? '¥' + Math.round(pd.total).toLocaleString() + ' (' + pd.count + '件)' : '-';
+        var color = pd.total > 0 ? 'color:#d97706;font-weight:600;' : 'color:var(--text3);';
+        return '<td style="' + tdStyle + '"><span style="font-size:11px;' + color + '">' + dispVal + '</span></td>';
+      }).join('')
     + '</tr>';
 
   // 変動費項目リスト（メンバーごとに管理）
@@ -4513,9 +4523,10 @@ function calcKekkaTeate(member, mIdx, targetYearMonth, ankenList) {
   var rentalArari = 0;
   var shindenArari = 0;
 
-  // 新電力手数料：案件とは独立。月別設定の手数料をそのまま加算
-  var shindenTotal = Number((settingsData.monthData||{})[ym]?.['m_' + mIdx + '_shindenryoku'] || 0);
-  shindenArari = shindenTotal;
+  // 新電力手数料：POWER MGRから担当者×月で自動取得
+  var powerData = getPowerCommissionForMember(member.name, ym);
+  shindenArari = powerData.total;
+  var shindenCount = powerData.count;
 
   // 案件を分類して保持
   var shotAnkenList = [];
@@ -6599,6 +6610,41 @@ function _getDcsData() {
     });
   });
   return units;
+}
+
+// ============================================================
+// 新電力：担当者別月次手数料（POWER MGR連携）
+// ============================================================
+var powerCommissionData = {}; // { "担当者名": { "2025-01": { total: 12345, count: 3 }, ... } }
+
+async function loadPowerCommission() {
+  try {
+    var res = await apiCall('getPowerCommissionByTanto');
+    if (res.ok && res.data) {
+      powerCommissionData = res.data;
+    }
+  } catch (e) {
+    console.log('新電力手数料取得スキップ:', e.message);
+  }
+}
+
+// 担当者名×年月で新電力手数料を取得（empNo=社員番号=POWER MGRのdairiNoで紐付け）
+function getPowerCommissionForMember(memberName, yearMonth) {
+  if (!yearMonth) return { total: 0, count: 0 };
+  // settingsData.membersからempNoを取得
+  var members = settingsData.members || [];
+  var normName = (memberName || '').replace(/\s/g, '');
+  var empNo = '';
+  for (var i = 0; i < members.length; i++) {
+    if ((members[i].name || '').replace(/\s/g, '') === normName) {
+      empNo = members[i].empNo || '';
+      break;
+    }
+  }
+  if (!empNo) return { total: 0, count: 0 };
+  var data = powerCommissionData[empNo];
+  if (!data) return { total: 0, count: 0 };
+  return data[yearMonth] || { total: 0, count: 0 };
 }
 
 // ============================================================
