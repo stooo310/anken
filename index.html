@@ -4793,10 +4793,7 @@ function buildSujiMemberCards(s, monthAnken, kojiTotalShinchoku, targetMonth) {
       + '<div style="font-size:11px;color:var(--text3);margin-top:2px;">' + ken + '件</div></div>';
   }).join('');
   return '<div class="dash-card" style="margin-bottom:20px;">'
-    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">'
-    + '<div class="dash-card-title" style="margin:0;">👥 メンバー進捗</div>'
-    + '<div style="text-align:right;"><div style="font-size:11px;color:var(--text3);">組織合計P</div>'
-    + '<div style="font-size:22px;font-weight:800;color:var(--accent);">' + totalP + 'P ' + totalPctSpan + totalAchSpan + '</div></div></div>'
+    + '<div class="dash-card-title" style="margin-bottom:16px;">👥 メンバー進捗</div>'
     + '<div style="display:flex;gap:12px;flex-wrap:wrap;">' + cards + '</div></div>';
 }
 
@@ -4870,11 +4867,20 @@ function buildSujiMonthTable(periodMonths, periodLabel, s) {
     var ym = py + '-' + String(pm).padStart(2,'0');
     var ms = getMonthSetting(ym);
     var mAnken = ankenList.filter(function(a) {
+      if(a.includeInSuji === false) return false;
       var d = a.juchuDate || a.date || '';
       var match = String(d).match(/(\d{4})[-\/](\d{1,2})/);
       return match && Number(match[1])===py && Number(match[2])===pm && a.type==='工事';
     });
-    var mShinchoku = mAnken.reduce(function(s,a){ return s + Math.max(0, getKeisanVal(a)) * (KOJI_STATUS_RATE_GLOBAL[a.status||'']||0); }, 0);
+    var mShinchokuByStatus = {};
+    mAnken.forEach(function(a) {
+      var st = a.status || '';
+      if(!mShinchokuByStatus[st]) mShinchokuByStatus[st] = 0;
+      mShinchokuByStatus[st] += Math.max(0, getKeisanVal(a));
+    });
+    var mShinchoku = Object.keys(mShinchokuByStatus).reduce(function(s, st) {
+      return s + Math.round(mShinchokuByStatus[st] * (KOJI_STATUS_RATE_GLOBAL[st] ?? 1));
+    }, 0);
     var mP = Math.floor(mShinchoku / 10000);
     var mKensu = mAnken.length;
     var mNyukin = mAnken.filter(function(a){ return a.status==='入金'; }).length;
@@ -4886,7 +4892,7 @@ function buildSujiMonthTable(periodMonths, periodLabel, s) {
     var mMemberCells = members.map(function(m) {
       var mmp = 0;
       mAnken.forEach(function(a) {
-        var val = Math.max(0, getKeisanVal(a)) * (KOJI_STATUS_RATE_GLOBAL[a.status||'']||0);
+        var val = Math.max(0, getKeisanVal(a)) * (KOJI_STATUS_RATE_GLOBAL[a.status||''] ?? 1);
         var isTanto = (a.tanto||'')===m.name, isApo = (a.apo||'')===m.name, hasApo = !!(a.apo||'').trim();
         if(isTanto && isApo) mmp+=val;
         else if(isTanto) mmp += hasApo ? val*0.5 : val;
@@ -4932,6 +4938,7 @@ function buildMemberMonthCards(members, periodMonths, periodLabel, s) {
   const bodyRows = periodMonths.map(function(pair) {
     var py = pair[0], pm = pair[1];
     var mAnken = ankenList.filter(function(a) {
+      if(a.includeInSuji === false) return false;
       var d = a.juchuDate || a.date || '';
       var match = String(d).match(/(\d{4})[-\/](\d{1,2})/);
       return match && Number(match[1])===py && Number(match[2])===pm && a.type==='工事';
@@ -4939,7 +4946,7 @@ function buildMemberMonthCards(members, periodMonths, periodLabel, s) {
     var cells = members.map(function(m) {
       var mmp = 0;
       mAnken.forEach(function(a) {
-        var val = Math.max(0, getKeisanVal(a)) * (KOJI_STATUS_RATE_GLOBAL[a.status||''] || 0);
+        var val = Math.max(0, getKeisanVal(a)) * (KOJI_STATUS_RATE_GLOBAL[a.status||''] ?? 1);
         var isTanto = (a.tanto||'')===m.name;
         var isApo   = (a.apo||'')===m.name;
         var hasApo  = !!(a.apo||'').trim();
