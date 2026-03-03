@@ -2420,8 +2420,7 @@ function buildDetailEditForm(a) {
     FORM_SECTIONS.forEach(sec => {
       let body = '<div class="dp-edit-grid">';
       sec.fields.forEach(f => {
-        const rawVal = a[f.key];
-        const val = (rawVal === false || rawVal === 0) ? rawVal : (rawVal || '');
+        const val = a[f.key]||'';
         const fullCls = f.full ? 'style="grid-column:1/-1"' : '';
         if(f.type==='textarea') {
           body += `<div class="form-group" ${fullCls}><label>${f.label}</label><textarea id="de-${f.id}">${val}</textarea></div>`;
@@ -5105,23 +5104,26 @@ function renderSuji() {
   const kojiStatusGroups = {};
   kojiAnken.forEach(a => {
     const st = a.status || 'その他';
-    if(!kojiStatusGroups[st]) kojiStatusGroups[st] = {count:0, price:0, keisan:0};
+    if(!kojiStatusGroups[st]) kojiStatusGroups[st] = {count:0, price:0, keisan:0, names:[]};
     kojiStatusGroups[st].count++;
     kojiStatusGroups[st].price += parseFloat(a.price)||0;
     kojiStatusGroups[st].keisan += Math.max(0, getKeisanVal(a));
+    kojiStatusGroups[st].names.push(a.kokyaku || a.rep || '-');
   });
 
   // テーブル行生成：KOJI_STATUS_ORDERの全ステータスを常時表示
   const kojiRows = KOJI_STATUS_ORDER.map(st => {
-    const d = kojiStatusGroups[st] || {count:0, price:0, keisan:0};
+    const d = kojiStatusGroups[st] || {count:0, price:0, keisan:0, names:[]};
     const rate = KOJI_STATUS_RATE_GLOBAL[st] ?? 1;
     const shinchokuArari = Math.round(d.keisan * rate);
+    const namesStr = d.names.length > 0 ? d.names.join('・') : '-';
     return `<tr style="border-bottom:1px solid var(--border);${d.count===0?'opacity:0.45':''}">
-      <td style="padding:7px 12px;font-size:13px;font-weight:600;">${st}</td>
-      <td style="padding:7px 12px;text-align:right;font-size:13px;">${d.count}件</td>
-      <td style="padding:7px 12px;text-align:right;font-size:13px;">${d.count?'¥'+Math.round(d.price).toLocaleString():'-'}</td>
-      <td style="padding:7px 12px;text-align:right;font-size:13px;color:var(--accent);font-weight:600;">${d.count?'¥'+Math.round(d.keisan).toLocaleString():'-'}</td>
-      <td style="padding:7px 12px;text-align:right;font-size:13px;font-weight:700;color:#16a34a;">${d.count?'¥'+shinchokuArari.toLocaleString():'-'}</td>
+      <td style="padding:5px 8px;font-size:12px;font-weight:600;white-space:nowrap;">${st}</td>
+      <td style="padding:5px 6px;text-align:right;font-size:12px;white-space:nowrap;">${d.count}件</td>
+      <td style="padding:5px 6px;text-align:right;font-size:12px;white-space:nowrap;">${d.count?'¥'+Math.round(d.price).toLocaleString():'-'}</td>
+      <td style="padding:5px 6px;text-align:right;font-size:12px;color:var(--accent);font-weight:600;white-space:nowrap;">${d.count?'¥'+Math.round(d.keisan).toLocaleString():'-'}</td>
+      <td style="padding:5px 6px;text-align:right;font-size:12px;font-weight:700;color:#16a34a;white-space:nowrap;">${d.count?'¥'+shinchokuArari.toLocaleString():'-'}</td>
+      <td style="padding:5px 8px;font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${namesStr}">${d.count ? namesStr : '-'}</td>
     </tr>`;
   }).join('');
 
@@ -5136,29 +5138,32 @@ function renderSuji() {
     ? '<div style="color:var(--text3);font-size:13px;padding:16px 0;">工事種別の該当データなし</div>'
     : `<table style="width:100%;border-collapse:collapse;margin-top:10px;table-layout:fixed;">
       <colgroup>
-        <col style="width:40%;">
-        <col style="width:10%;">
-        <col style="width:18%;">
-        <col style="width:18%;">
-        <col style="width:18%;">
+        <col style="width:auto;">
+        <col style="width:50px;">
+        <col style="width:90px;">
+        <col style="width:100px;">
+        <col style="width:90px;">
+        <col style="width:35%;">
       </colgroup>
       <thead>
         <tr style="border-bottom:2px solid var(--border);">
-          <th style="padding:6px 12px;text-align:left;font-size:11px;color:var(--text3);">ステータス</th>
-          <th style="padding:6px 12px;text-align:right;font-size:11px;color:var(--text3);">件数</th>
-          <th style="padding:6px 12px;text-align:right;font-size:11px;color:var(--text3);">売上</th>
-          <th style="padding:6px 12px;text-align:right;font-size:11px;color:var(--text3);">計算対象金額</th>
-          <th style="padding:6px 12px;text-align:right;font-size:11px;color:var(--text3);">進捗粗利</th>
+          <th style="padding:5px 8px;text-align:left;font-size:11px;color:var(--text3);">ステータス</th>
+          <th style="padding:5px 6px;text-align:right;font-size:11px;color:var(--text3);">件数</th>
+          <th style="padding:5px 6px;text-align:right;font-size:11px;color:var(--text3);">売上</th>
+          <th style="padding:5px 6px;text-align:right;font-size:11px;color:var(--text3);">計算対象</th>
+          <th style="padding:5px 6px;text-align:right;font-size:11px;color:var(--text3);">進捗粗利</th>
+          <th style="padding:5px 8px;text-align:left;font-size:11px;color:var(--text3);">案件名</th>
         </tr>
       </thead>
       <tbody>${kojiRows}</tbody>
       <tfoot>
         <tr style="border-top:2px solid var(--border);background:var(--bg2);">
-          <td style="padding:8px 12px;font-size:13px;font-weight:700;">合計</td>
-          <td style="padding:8px 12px;text-align:right;font-size:13px;font-weight:700;">${kojiTotal}件</td>
-          <td style="padding:8px 12px;text-align:right;font-size:13px;font-weight:700;">¥${Math.round(kojiTotalPrice).toLocaleString()}</td>
-          <td style="padding:8px 12px;text-align:right;font-size:13px;font-weight:700;color:var(--accent);">¥${Math.round(kojiTotalKeisan).toLocaleString()}</td>
-          <td style="padding:8px 12px;text-align:right;font-size:14px;font-weight:800;color:#16a34a;">¥${kojiTotalShinchoku.toLocaleString()}</td>
+          <td style="padding:6px 8px;font-size:12px;font-weight:700;">合計</td>
+          <td style="padding:6px 6px;text-align:right;font-size:12px;font-weight:700;">${kojiTotal}件</td>
+          <td style="padding:6px 6px;text-align:right;font-size:12px;font-weight:700;">¥${Math.round(kojiTotalPrice).toLocaleString()}</td>
+          <td style="padding:6px 6px;text-align:right;font-size:12px;font-weight:700;color:var(--accent);">¥${Math.round(kojiTotalKeisan).toLocaleString()}</td>
+          <td style="padding:6px 6px;text-align:right;font-size:13px;font-weight:800;color:#16a34a;">¥${kojiTotalShinchoku.toLocaleString()}</td>
+          <td></td>
         </tr>
       </tfoot>
     </table>`;
