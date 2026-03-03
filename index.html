@@ -1652,7 +1652,7 @@ const FORM_SECTIONS = [
       { id:'f-nyukin',     label:'入金額（税込）',     type:'number', key:'nyukin',    placeholder:'0' },
       { id:'f-nyukin-date',label:'入金日',            type:'date',   key:'nyukinDate' },
       { id:'f-hoshu-date', label:'初回引落日',        type:'date',   key:'hoshuDate' },
-      { id:'f-歩合',       label:'歩合完了',          type:'text',   key:'buai',      placeholder:'' },
+      { id:'f-歩合',       label:'歩合確定日',        type:'date',   key:'buai',      placeholder:'' },
     ]
   },
   {
@@ -2284,7 +2284,7 @@ function renderDetailView(id) {
     ['工事費', kojiDisp], ['計算対象金額', keisanDisp],
     ['材工（税込）', zaikoDisp], ['信販会社', a.shinpanCo||'-'],
     ['粗利金額', arariDisp], ['審査結果', a.shinsaResult ? `<span style="font-weight:600;color:${a.shinsaResult==='OK'?'#16a34a':a.shinsaResult==='NG'?'#ef4444':'var(--text)'}">${a.shinsaResult}</span>` : '-'],
-    ['入金日', fmtDate(a.nyukinDate)], ['歩合完了', a.buai||'-'],
+    ['入金日', fmtDate(a.nyukinDate)], ['歩合確定日', fmtDate(a.buai)],
   ]);
 
   html += buildDetailAccSection('🛡 保守情報', false, [
@@ -4513,10 +4513,10 @@ function calcKekkaTeate(member, mIdx, targetYearMonth, ankenList) {
   var yr = Number(ym.split('-')[0]);
   var mo = Number(ym.split('-')[1]);
 
-  // 対象月の工事案件（入金日基準）
+  // 対象月の工事案件（歩合確定日基準）
   var mAnken = ankenList.filter(function(a) {
     if(a.includeInSuji === false) return false;
-    var d = a.nyukinDate || '';
+    var d = a.buai || '';
     var match = String(d).match(/(\d{4})[-\/](\d{1,2})/);
     if(!match) return false;
     return Number(match[1])===yr && Number(match[2])===mo && a.type==='工事';
@@ -5138,12 +5138,12 @@ function renderSuji() {
     ? '<div style="color:var(--text3);font-size:13px;padding:16px 0;">工事種別の該当データなし</div>'
     : `<table style="width:100%;border-collapse:collapse;margin-top:10px;table-layout:fixed;">
       <colgroup>
-        <col style="width:auto;">
-        <col style="width:50px;">
         <col style="width:90px;">
-        <col style="width:100px;">
-        <col style="width:90px;">
-        <col style="width:35%;">
+        <col style="width:40px;">
+        <col style="width:80px;">
+        <col style="width:80px;">
+        <col style="width:80px;">
+        <col>
       </colgroup>
       <thead>
         <tr style="border-bottom:2px solid var(--border);">
@@ -5295,7 +5295,7 @@ function parseJsonPreview(jsonRows) {
     '計算対象金額':'keisan',
     '仲介手数料（税込）':'chukai','仲介手数料(税込)':'chukai','仲介手数料':'chukai',
     '入金額（税込）':'nyukin','入金額(税込)':'nyukin','入金額':'nyukin',
-    '入金日':'nyukinDate','歩合完了':'buai',
+    '入金日':'nyukinDate','歩合確定日':'buai',
     '新品・中古':'shinchu','保守歴：有無':'hoshuReki','保守月額':'hoshuHi',
     '保守対応会社':'hoshuCo','保守日時':'hoshuDatetime','保守金額':'hoshuKin',
     '保守契約：有無':'hoshuKeiyaku',
@@ -5427,7 +5427,7 @@ function parseCsvPreview(text) {
     '計算対象金額':'keisan',
     '仲介手数料（税込）':'chukai','仲介手数料(税込)':'chukai','仲介手数料':'chukai',
     '入金額（税込）':'nyukin','入金額(税込)':'nyukin','入金額':'nyukin',
-    '入金日':'nyukinDate','歩合完了':'buai',
+    '入金日':'nyukinDate','歩合確定日':'buai',
     '新品・中古':'shinchu','保守歴：有無':'hoshuReki','保守月額':'hoshuHi',
     '保守対応会社':'hoshuCo','保守日時':'hoshuDatetime','保守金額':'hoshuKin',
     '保守契約：有無':'hoshuKeiyaku',
@@ -5673,7 +5673,7 @@ function downloadSampleCsv() {
       ['仲介手数料（税込）','',           'text'],
       ['入金額（税込）',  '',             'text'],
       ['入金日',          '',             'date'],
-      ['歩合完了',        '未',           'dropdown', ['済','未']],
+      ['歩合確定日',      '',            'date',      []],
       ['新品・中古',      '新品',         'dropdown', ['新品','中古']],
       ['保守歴：有無',    '無',           'dropdown', ['有','無']],
       ['保守月額',        '',             'text'],
@@ -5688,7 +5688,7 @@ function downloadSampleCsv() {
       ['リプ粗利',        '',             'text'],
       ['第２設置供給地点','',             'text'],
       ['第２設計器気番号','',             'text'],
-      ['ステータス',      '受注',         'dropdown', ['受注','着工','完工','入金','歩合完了','キャンセル']],
+      ['ステータス',      '受注',         'dropdown', ['受注','着工','完工','入金','歩合確定','キャンセル']],
       ['種別',            '工事',         'dropdown', ['工事','保守','そーだん']],
       ['月',              '2025-01',      'text'],
       ['備考',            '',             'text'],
@@ -5791,7 +5791,7 @@ const EXPORT_COLS = [
   ['kojiCo2','工事②'],['zairyo2','材料②'],['sonota','その他'],['kotsu','交通費'],['biko2','備考②'],
   ['price','物件価格（税込）'],['zairyoHi','材料費'],['kojiHi','工事費'],['zaiko','材工（税込）'],
   ['shinpan','信販など手数料'],['shinpanCo','信販会社'],['shinsaResult','審査結果'],['keisan','計算対象金額'],['chukai','仲介手数料（税込）'],
-  ['nyukin','入金額（税込）'],['nyukinDate','入金日'],['hoshuDate','初回引落日'],['buai','歩合完了'],
+  ['nyukin','入金額（税込）'],['nyukinDate','入金日'],['hoshuDate','初回引落日'],['buai','歩合確定日'],
   ['hoshuReki','保守歴：有無'],['hoshuHi','保守月額'],['hoshuCo','保守対応会社'],
   ['hoshuDatetime','保守日時'],['hoshuKin','保守金額'],['hoshuKeiyaku','保守契約：有無'],
   ['ripuZairyo','材料③'],['ripuKoji','工事③'],['ripuSonota','その他②'],
