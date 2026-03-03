@@ -2420,7 +2420,8 @@ function buildDetailEditForm(a) {
     FORM_SECTIONS.forEach(sec => {
       let body = '<div class="dp-edit-grid">';
       sec.fields.forEach(f => {
-        const val = a[f.key]||'';
+        const rawVal = a[f.key];
+        const val = (rawVal === false || rawVal === 0) ? rawVal : (rawVal || '');
         const fullCls = f.full ? 'style="grid-column:1/-1"' : '';
         if(f.type==='textarea') {
           body += `<div class="form-group" ${fullCls}><label>${f.label}</label><textarea id="de-${f.id}">${val}</textarea></div>`;
