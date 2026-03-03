@@ -2475,8 +2475,12 @@ function buildDetailEditForm(a) {
               <input type="text" id="de-${f.id}" value="${curNo}" placeholder="D番号自動表示" readonly style="flex:1;background:var(--bg2);color:var(--text3);">
             </div></div>`;
         } else if(f.type==='checkbox') {
-          var ckVal = val !== false && val !== 'false' && val !== 0;
-          if(val === undefined || val === null) ckVal = f.defaultVal !== undefined ? f.defaultVal : true;
+          var ckVal;
+          if(val === undefined || val === null || val === '') {
+            ckVal = f.defaultVal !== undefined ? f.defaultVal : true;
+          } else {
+            ckVal = val !== false && val !== 'false' && val !== 'FALSE' && val !== 0;
+          }
           body += `<div class="form-group" ${fullCls}><label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="de-${f.id}" ${ckVal?' checked':''} style="accent-color:var(--accent);width:18px;height:18px;"> ${f.label}</label></div>`;
         } else {
           body += `<div class="form-group" ${fullCls}><label>${f.label}</label><input type="${f.type}" id="de-${f.id}" value="${val}" placeholder="${f.placeholder||''}"></div>`;
@@ -2714,8 +2718,12 @@ function buildForm(type, data) {
         const opts = f.options.map(o=>`<option value="${o}"${o===val?' selected':''}>${o||'（未選択）'}</option>`).join('');
         html += `<div class="form-group" ${fullCls}><label>${f.label}</label><select id="${f.id}">${opts}</select></div>`;
       } else if(f.type==='checkbox') {
-        var ckVal2 = val !== false && val !== 'false' && val !== 0;
-        if(val === undefined || val === null || val === '') ckVal2 = f.defaultVal !== undefined ? f.defaultVal : true;
+        var ckVal2;
+        if(val === undefined || val === null || val === '') {
+          ckVal2 = f.defaultVal !== undefined ? f.defaultVal : true;
+        } else {
+          ckVal2 = val !== false && val !== 'false' && val !== 'FALSE' && val !== 0;
+        }
         html += `<div class="form-group" ${fullCls}><label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="${f.id}" ${ckVal2?' checked':''} style="accent-color:var(--accent);width:18px;height:18px;"> ${f.label}</label></div>`;
       } else {
         html += `<div class="form-group" ${fullCls}><label>${f.label}</label><input type="${f.type}" id="${f.id}" placeholder="${f.placeholder||''}" value="${val}"></div>`;
