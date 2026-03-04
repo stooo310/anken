@@ -3207,6 +3207,11 @@ function saveAnken() {
   const added = autoRegisterKokyaku(data);
   if(editingAnkenId) {
     const i = ankenList.findIndex(x=>x.id===editingAnkenId);
+    // Google Drive URL系: フォームが空なら既存値を保持（非同期フォルダ作成との競合防止）
+    var driveKeys = ['data','contractUrl','status3'];
+    driveKeys.forEach(function(k) {
+      if(!data[k] && ankenList[i][k]) data[k] = ankenList[i][k];
+    });
     ankenList[i] = { ...ankenList[i], ...data };
     // 既存案件で案件番号が未採番なら採番
     if(!ankenList[i].juchuNo) {
