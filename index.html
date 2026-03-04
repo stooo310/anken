@@ -3282,25 +3282,40 @@ function saveAnken() {
 function copyAnken(id) {
   const a = ankenList.find(x=>x.id===id);
   if(!a) return;
-  const copy = { ...a, id: Date.now(), kokyaku: a.kokyaku+'【コピー】', status: STATUS_MAP[a.type][0], juchuDate: '', data:'', contractUrl:'', status3:'' };
+  const copyId = Date.now();
+  const copy = { ...a, id: copyId, kokyaku: a.kokyaku+'【コピー】', status: STATUS_MAP[a.type][0], juchuDate: '', data:'', contractUrl:'', status3:'' };
   ankenList.unshift(copy);
   saveAnkenData(); renderAnkenTable();
-  // API個別保存
-  saveAnkenSingle(copy);
-  // Googleドライブに3フォルダ自動作成
-  if (copy.kokyaku && authToken) {
-    var folderName = (copy.kokyaku || '案件') + '_' + (copy.juchuDate || '').replace(/-/g,'');
-    apiCall('createFolder', { folderName: folderName, ankenId: copy.id }).then(function(r) {
-      if (r.ok && r.folders) {
-        if (r.folders.data) copy.data = r.folders.data;
-        if (r.folders.contractUrl) copy.contractUrl = r.folders.contractUrl;
-        if (r.folders.status3) copy.status3 = r.folders.status3;
-        saveAnkenData();
-        showToast('📁 Googleドライブに3つのフォルダを作成しました');
-      }
-    }).catch(function(e) { console.error('フォルダ作成エラー:', e); });
-  }
   openEditAnken(copy.id);
+  // API保存 → 完了後にフォルダ作成
+  if (authToken) {
+    saveAnkenSingle(copy);
+    if (copy.kokyaku) {
+      var folderName = (copy.kokyaku || '案件') + '_' + String(copyId);
+      setTimeout(function() {
+        apiCall('createFolder', { folderName: folderName, ankenId: copyId }).then(function(r) {
+          if (r.ok && r.folders) {
+            var target = ankenList.find(function(x){ return x.id === copyId; });
+            if(target) {
+              if (r.folders.data) target.data = r.folders.data;
+              if (r.folders.contractUrl) target.contractUrl = r.folders.contractUrl;
+              if (r.folders.status3) target.status3 = r.folders.status3;
+              saveAnkenData();
+              saveAnkenSingle(target);
+              showToast('📁 Googleドライブに3つのフォルダを作成しました');
+              // 編集画面が開いていたら再描画
+              if(editingAnkenId === copyId) {
+                document.getElementById('modal-body-content').innerHTML = buildForm(target.type, target);
+              }
+            }
+          }
+        }).catch(function(e) {
+          console.error('フォルダ作成エラー:', e);
+          showToast('⚠️ フォルダ作成に失敗しました');
+        });
+      }, 500);
+    }
+  }
 }
 
 var _pendingDeleteId = null;
