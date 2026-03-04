@@ -3282,9 +3282,24 @@ function saveAnken() {
 function copyAnken(id) {
   const a = ankenList.find(x=>x.id===id);
   if(!a) return;
-  const copy = { ...a, id: Date.now(), kokyaku: a.kokyaku+'【コピー】', status: STATUS_MAP[a.type][0], juchuDate: '' };
+  const copy = { ...a, id: Date.now(), kokyaku: a.kokyaku+'【コピー】', status: STATUS_MAP[a.type][0], juchuDate: '', data:'', contractUrl:'', status3:'' };
   ankenList.unshift(copy);
   saveAnkenData(); renderAnkenTable();
+  // API個別保存
+  saveAnkenSingle(copy);
+  // Googleドライブに3フォルダ自動作成
+  if (copy.kokyaku && authToken) {
+    var folderName = (copy.kokyaku || '案件') + '_' + (copy.juchuDate || '').replace(/-/g,'');
+    apiCall('createFolder', { folderName: folderName, ankenId: copy.id }).then(function(r) {
+      if (r.ok && r.folders) {
+        if (r.folders.data) copy.data = r.folders.data;
+        if (r.folders.contractUrl) copy.contractUrl = r.folders.contractUrl;
+        if (r.folders.status3) copy.status3 = r.folders.status3;
+        saveAnkenData();
+        showToast('📁 Googleドライブに3つのフォルダを作成しました');
+      }
+    }).catch(function(e) { console.error('フォルダ作成エラー:', e); });
+  }
   openEditAnken(copy.id);
 }
 
