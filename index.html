@@ -1738,13 +1738,18 @@ var ankenList = [];
 var kokyakuList = [];
 
 
+var _saveAnkenTimer = null;
 function saveAnkenData() {
-  // APIに保存（非同期、バックグラウンド）
-  if (authToken) {
-    apiCall('bulkSaveAnken', { data: ankenList }).then(function(r) {
-      if (!r.ok) console.error('案件保存エラー:', r.error);
-    }).catch(function(e) { console.error('案件保存通信エラー:', e); });
-  }
+  // デバウンス: 短時間の連続保存を防止（最後の呼び出しから1.5秒後に実行）
+  if (_saveAnkenTimer) clearTimeout(_saveAnkenTimer);
+  _saveAnkenTimer = setTimeout(function() {
+    _saveAnkenTimer = null;
+    if (authToken) {
+      apiCall('bulkSaveAnken', { data: ankenList }).then(function(r) {
+        if (!r.ok) console.error('案件保存エラー:', r.error);
+      }).catch(function(e) { console.error('案件保存通信エラー:', e); });
+    }
+  }, 1500);
 }
 function saveKokyakuData() {
   // 顧客は1件ずつ保存ではなく、変更のあった顧客を保存
@@ -3275,6 +3280,7 @@ function saveAnken() {
           if (r.folders.data) newA.data = r.folders.data;
           if (r.folders.contractUrl) newA.contractUrl = r.folders.contractUrl;
           if (r.folders.status3) newA.status3 = r.folders.status3;
+          saveAnkenSingle(newA);
           renderDetailView(newA.id);
           showToast('📁 Googleドライブに3つのフォルダを作成しました');
         }
