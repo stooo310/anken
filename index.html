@@ -476,7 +476,7 @@ tbody tr:hover td { background: #f7f9ff; }
     <div class="filter-bar">
       <div class="search-wrap">
         <span class="search-icon">🔍</span>
-        <input type="text" id="search-input" placeholder="顧客名・提案内容で検索..." oninput="renderAnkenTable()">
+        <input type="text" id="search-input" placeholder="顧客名・代表者名・電話番号・担当者で検索..." oninput="renderAnkenTable()">
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
         <input type="month" id="anken-month-filter" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:inherit;background:var(--bg);color:var(--text);" onchange="renderAnkenTable()" title="受注月で絞り込み">
@@ -1966,7 +1966,7 @@ function renderAnkenTable() {
   const filtered = ankenList.filter(a => {
     const matchType = currentTypeFilter === 'all' || a.type === currentTypeFilter;
     const matchStatus = currentStatusFilter === 'all' || a.status === currentStatusFilter;
-    const matchQ = !q || (a.kokyaku||'').toLowerCase().includes(q) || (a.content||'').toLowerCase().includes(q);
+    const matchQ = !q || [a.kokyaku, a.content, a.rep, a.repKana, a.kokyakuKana, a.tel, a.tanto, a.juchuNo].some(function(v){return (v||'').toLowerCase().includes(q)});
     // アーカイブフィルター：トグルOFFなら終了ステータスを除外（ただしステータスフィルター指定時は表示）
     const isArchived = archiveStatuses.includes(a.status);
     const matchArchive = showArchived || !isArchived || currentStatusFilter !== 'all';
@@ -5864,7 +5864,7 @@ function openExportModal() {
   const currentList = ankenList.filter(a => {
     const matchType = currentTypeFilter === 'all' || a.type === currentTypeFilter;
     const matchStatus = currentStatusFilter === 'all' || a.status === currentStatusFilter;
-    const matchQ = !q || (a.kokyaku||'').toLowerCase().includes(q) || (a.content||'').toLowerCase().includes(q);
+    const matchQ = !q || [a.kokyaku, a.content, a.rep, a.repKana, a.kokyakuKana, a.tel, a.tanto, a.juchuNo].some(function(v){return (v||'').toLowerCase().includes(q)});
     return matchType && matchStatus && matchQ;
   });
   document.getElementById('exp-count-current').textContent = currentList.length + '件';
@@ -5887,7 +5887,7 @@ function executeExport() {
     list = ankenList.filter(a => {
       const matchType = currentTypeFilter === 'all' || a.type === currentTypeFilter;
       const matchStatus = currentStatusFilter === 'all' || a.status === currentStatusFilter;
-      const matchQ = !q || (a.kokyaku||'').toLowerCase().includes(q) || (a.content||'').toLowerCase().includes(q);
+      const matchQ = !q || [a.kokyaku, a.content, a.rep, a.repKana, a.kokyakuKana, a.tel, a.tanto, a.juchuNo].some(function(v){return (v||'').toLowerCase().includes(q)});
       return matchType && matchStatus && matchQ;
     });
   }
