@@ -2591,8 +2591,12 @@ function saveDetailEdit() {
     });
   }
   saveAnkenData();
-  // 保存後に材料費・工事費・材工を自動再計算してデータに反映
-  autoCalcCosts(a);
+  // 材工の自動再計算（材料費・工事費が両方入力済みで材工が未入力の場合のみ）
+  var _zairyo = parseFloat(a.zairyoHi)||0;
+  var _koji = parseFloat(a.kojiHi)||0;
+  if(_zairyo + _koji > 0 && !parseFloat(a.zaiko)) {
+    a.zaiko = String(_zairyo + _koji);
+  }
   saveAnkenSingle(a);
   renderAnkenTable();
   if(document.getElementById('page-koji').style.display !== 'none') renderKoji();
@@ -5985,10 +5989,10 @@ function autoCalcCosts(a) {
     items.forEach(item => { const u = KOJI_PRICE[item]; if(u!=null) total += u*count; });
     if(total) a.kojiHi = String(total);
   }
-  // 材工（材料費＋工事費）
+  // 材工（材料費＋工事費）— 手動入力がなければ自動計算
   const zairyo = parseFloat(a.zairyoHi)||0;
   const koji   = parseFloat(a.kojiHi)||0;
-  if(zairyo + koji > 0) a.zaiko = String(zairyo + koji);
+  if(!parseFloat(a.zaiko) && zairyo + koji > 0) a.zaiko = String(zairyo + koji);
 
   // ★ 代理店卸値の自動セット（dairiZairyo / dairiKoji）
   var dairiNo = (a.dairiNo||'').trim();
@@ -6018,9 +6022,14 @@ function autoCalcCosts(a) {
   const isLeaseLoan = ['リース','ローン'].includes(a.keiyakuType||'');
   const shinpanA = isLeaseLoan ? 550 : 0;
   const hasDairiNo = !!(a.dairiNo||'').trim();
+  let shinpanRate = 0;
+  if(hasDairiNo && settingsData && settingsData.dairiList) {
+    var dcShinpan = settingsData.dairiList.find(function(d){return d.no === (a.dairiNo||'').trim();});
+    if(dcShinpan) shinpanRate = (dcShinpan.shinpanRate || 0) / 100;
+  }
   const price = parseFloat(a.price)||0;
   const zaiko = parseFloat(a.zaiko)||0;
-  const shinpanB = hasDairiNo ? Math.round((price - zaiko - 550) * 0.3) : 0;
+  const shinpanB = (hasDairiNo && shinpanRate > 0) ? Math.round(price * shinpanRate) : (hasDairiNo ? Math.round((price - zaiko - 550) * 0.3) : 0);
   const autoShinpan = shinpanA + (shinpanB > 0 ? shinpanB : 0);
   if(!parseFloat(a.shinpan) && autoShinpan > 0) a.shinpan = String(autoShinpan);
 
@@ -6066,16 +6075,34 @@ function calcShinpan(targetId) {
   const isLeaseLoan = ['リース','ローン'].includes(keiyakuType);
   const shinpanA = isLeaseLoan ? 550 : 0;
   const hasDairiNo = !!dairiNo;
-  const shinpanB = hasDairiNo ? Math.round((price - zaiko - 550) * 0.3) : 0;
+  // 代理店マスタから信販利用手数料率を取得
+  let shinpanRate = 0;
+  let shinpanRateLabel = '';
+  if(hasDairiNo && settingsData && settingsData.dairiList) {
+    var dcS = settingsData.dairiList.find(function(d){return d.no === dairiNo;});
+    if(dcS && dcS.shinpanRate) {
+      shinpanRate = dcS.shinpanRate / 100;
+      shinpanRateLabel = dcS.shinpanRate + '%';
+    }
+  }
+  let shinpanB = 0;
+  let bLabel = '';
+  if(hasDairiNo && shinpanRate > 0) {
+    shinpanB = Math.round(price * shinpanRate);
+    bLabel = 'B(代理店あり)=¥' + shinpanB.toLocaleString();
+  } else if(hasDairiNo) {
+    shinpanB = Math.round((price - zaiko - 550) * 0.3);
+    bLabel = 'B(代理店あり)=¥' + shinpanB.toLocaleString();
+  }
   const total = shinpanA + (shinpanB > 0 ? shinpanB : 0);
 
   document.getElementById(targetId).value = total;
   const preview = document.getElementById(targetId+'-preview');
   if(preview) {
     let parts = [];
-    if(shinpanA) parts.push(`A(${keiyakuType})=¥${shinpanA.toLocaleString()}`);
-    if(shinpanB > 0) parts.push(`B(代理店あり)=¥${shinpanB.toLocaleString()}`);
-    preview.textContent = parts.length ? `内訳: ${parts.join(' ＋ ')} → ¥${total.toLocaleString()}` : '該当条件なし（0円）';
+    if(shinpanA) parts.push('A(' + keiyakuType + ')=¥' + shinpanA.toLocaleString());
+    if(shinpanB > 0) parts.push(bLabel);
+    preview.textContent = parts.length ? '内訳: ' + parts.join(' ＋ ') + ' → ¥' + total.toLocaleString() : '該当条件なし（0円）';
   }
   // 計算対象金額も連動更新
   const keisanId = prefix + 'f-keisan';
