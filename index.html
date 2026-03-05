@@ -2245,42 +2245,49 @@ function renderDetailView(id) {
   })();
 
   // 計算値があれば優先、なければ保存値、どちらもなければ0
-  const zairyoVal = calcZairyo ?? parseFloat(a.zairyoHi) ?? 0;
-  const kojiVal   = calcKoji   ?? parseFloat(a.kojiHi)   ?? 0;
+  // ただし保存値が手動入力されている場合は保存値を優先
+  const zairyoVal = parseFloat(a.zairyoHi) || calcZairyo || 0;
+  const kojiVal   = parseFloat(a.kojiHi)   || calcKoji   || 0;
 
-  // 表示：計算値があれば緑（暫定）、計算対象外かつ保存値あれば黒
-  const zairyoDisp = calcZairyo
-    ? `<span style="color:#16a34a;font-weight:600;">¥${calcZairyo.toLocaleString()}</span><span style="font-size:10px;color:var(--text3);margin-left:4px;">（暫定）</span>`
-    : parseFloat(a.zairyoHi) ? v(a.zairyoHi,true) : '-';
-  const kojiDisp = calcKoji
-    ? `<span style="color:#16a34a;font-weight:600;">¥${calcKoji.toLocaleString()}</span><span style="font-size:10px;color:var(--text3);margin-left:4px;">（暫定）</span>`
-    : parseFloat(a.kojiHi) ? v(a.kojiHi,true) : '-';
+  // 表示：保存値があればそのまま表示、なければ計算値を暫定表示
+  const zairyoDisp = parseFloat(a.zairyoHi)
+    ? (calcZairyo && calcZairyo === parseFloat(a.zairyoHi)
+      ? `<span style="color:#16a34a;font-weight:600;">¥${parseFloat(a.zairyoHi).toLocaleString()}</span><span style="font-size:10px;color:var(--text3);margin-left:4px;">（暫定）</span>`
+      : v(a.zairyoHi,true))
+    : calcZairyo
+      ? `<span style="color:#16a34a;font-weight:600;">¥${calcZairyo.toLocaleString()}</span><span style="font-size:10px;color:var(--text3);margin-left:4px;">（暫定）</span>`
+      : '-';
+  const kojiDisp = parseFloat(a.kojiHi)
+    ? (calcKoji && calcKoji === parseFloat(a.kojiHi)
+      ? `<span style="color:#16a34a;font-weight:600;">¥${parseFloat(a.kojiHi).toLocaleString()}</span><span style="font-size:10px;color:var(--text3);margin-left:4px;">（暫定）</span>`
+      : v(a.kojiHi,true))
+    : calcKoji
+      ? `<span style="color:#16a34a;font-weight:600;">¥${calcKoji.toLocaleString()}</span><span style="font-size:10px;color:var(--text3);margin-left:4px;">（暫定）</span>`
+      : '-';
 
-  // 材工（税込）= 材料費計算値 + 工事費計算値（常に再計算）
-  const zairyoNum = calcZairyo ?? parseFloat(a.zairyoHi) ?? 0;
-  const kojiNum   = calcKoji   ?? parseFloat(a.kojiHi)   ?? 0;
-  const autoZaiko = zairyoNum + kojiNum;
-  const zaikoDisp = autoZaiko ? `¥${autoZaiko.toLocaleString()}`
-    : parseFloat(a.zaiko) ? v(a.zaiko, true) : '-';
-  // 信販など手数料の自動計算に使う材工値
-  const zaikoNum2 = autoZaiko || parseFloat(a.zaiko) || 0;
-  // 信販など手数料：リース・ローンなら550円のみ
-  const isLeaseLoan = ['リース','ローン'].includes(a.keiyakuType||'');
-  const shinpanVal = isLeaseLoan ? 550 : 0;
-  const shinpanDisp = shinpanVal ? `¥${shinpanVal.toLocaleString()}` : '-';
+  // 材工（税込）= 保存値を優先、なければ再計算
+  const zaikoDisp = parseFloat(a.zaiko) ? v(a.zaiko, true)
+    : (zairyoVal + kojiVal > 0 ? `¥${(zairyoVal + kojiVal).toLocaleString()}` : '-');
+  const zaikoNum2 = parseFloat(a.zaiko) || (zairyoVal + kojiVal) || 0;
 
-  // 仲介手数料：代理店番号があり物件価格が入力済みの場合のみ (物件価格 - 材工 - 550) × 30%
+  // 信販など手数料：保存値を優先表示
+  const shinpanSaved = parseFloat(a.shinpan) || 0;
+  const shinpanDisp = shinpanSaved ? `¥${shinpanSaved.toLocaleString()}` : '-';
+
+  // 仲介手数料：保存値を優先
   const hasDairiNo = !!(a.dairiNo || '').trim();
   const priceNum = parseFloat(a.price) || 0;
-  const chukaiVal = (hasDairiNo && priceNum > 0) ? Math.round((priceNum - zaikoNum2 - 550) * 0.3) : (parseFloat(a.chukai) || 0);
+  const chukaiSaved = parseFloat(a.chukai) || 0;
+  const chukaiVal = chukaiSaved ? chukaiSaved : ((hasDairiNo && priceNum > 0) ? Math.round((priceNum - zaikoNum2 - 550) * 0.3) : 0);
   const chukaiDisp = chukaiVal ? `¥${chukaiVal.toLocaleString()}` : '-';
 
-  // 計算対象金額 = 物件価格 - 材工 - 信販 - 仲介手数料（物件価格入力済みの場合のみ）
-  const autoKeisan = priceNum > 0 ? (priceNum - zaikoNum2 - shinpanVal - chukaiVal) : 0;
-  const keisanDisp = autoKeisan > 0 ? `¥${autoKeisan.toLocaleString()}` : '-';
+  // 計算対象金額：保存値を優先
+  const keisanSaved = parseFloat(a.keisan) || 0;
+  const keisanDisp = keisanSaved ? `¥${keisanSaved.toLocaleString()}`
+    : (priceNum > 0 ? `¥${(priceNum - zaikoNum2 - shinpanSaved - chukaiVal).toLocaleString()}` : '-');
 
-  // 粗利金額 = 物件価格 - 材工 - 信販（常時自動計算）
-  const arariVal = priceNum - zaikoNum2 - shinpanVal;
+  // 粗利金額 = 物件価格 - 材工 - 信販
+  const arariVal = priceNum - zaikoNum2 - shinpanSaved;
   const arariDisp = arariVal > 0 ? `¥${arariVal.toLocaleString()}` : '-';
 
   html += buildDetailAccSection('💰 費用情報', false, [
