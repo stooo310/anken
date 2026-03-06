@@ -2597,7 +2597,14 @@ function saveDetailEdit() {
       });
     });
   }
-  saveAnkenData();
+  // 即時保存（デバウンスをキャンセルして即座にbulk保存）
+  if(_saveAnkenTimer) clearTimeout(_saveAnkenTimer);
+  _saveAnkenTimer = null;
+  if (authToken) {
+    apiCall('bulkSaveAnken', { data: ankenList }).then(function(r) {
+      if (!r.ok) console.error('案件保存エラー:', r.error);
+    }).catch(function(e) { console.error('案件保存通信エラー:', e); });
+  }
   // 材工の自動再計算（材料費・工事費が両方入力済みで材工が未入力の場合のみ）
   var _zairyo = parseFloat(a.zairyoHi)||0;
   var _koji = parseFloat(a.kojiHi)||0;
@@ -5980,20 +5987,37 @@ function getFieldStr(prefix, fieldId) {
 
 // 保存時に材料費・工事費・材工を自動計算してオブジェクトに書き込む
 function autoCalcCosts(a) {
-  // 材料費（手動入力がなければ自動計算）
+  // 代理店の卸値マスタを取得
+  var dairiNo = (a.dairiNo||'').trim();
+  var dcMaster = null;
+  if(dairiNo && settingsData && settingsData.dairiList) {
+    dcMaster = settingsData.dairiList.find(function(d){return d.no === dairiNo;});
+  }
+
+  // 材料費（手動入力がなければ自動計算）— 代理店マスタ優先
   if(!parseFloat(a.zairyoHi)) {
     const items = (a.teianContent||'').split('・').filter(s=>s&&!s.startsWith('その他'));
     const count = Math.max(1, parseInt(a.teianCount)||1);
+    var dairiOZ = (dcMaster && dcMaster.oroshiZairyo) ? dcMaster.oroshiZairyo : null;
     let total = 0;
-    items.forEach(item => { const u = ZAIRYO_PRICE[item]; if(u!=null) total += u*count; });
+    items.forEach(item => {
+      var du = dairiOZ ? dairiOZ[item] : null;
+      const u = (du != null && du > 0) ? du : ZAIRYO_PRICE[item];
+      if(u!=null) total += u*count;
+    });
     if(total) a.zairyoHi = String(total);
   }
-  // 工事費（手動入力がなければ自動計算）
+  // 工事費（手動入力がなければ自動計算）— 代理店マスタ優先
   if(!parseFloat(a.kojiHi)) {
     const items = (a.kojiContent||'').split('・').filter(s=>s&&!s.startsWith('その他'));
     const count = Math.max(1, parseInt(a.kojiCount)||1);
+    var dairiOK = (dcMaster && dcMaster.oroshiKoji) ? dcMaster.oroshiKoji : null;
     let total = 0;
-    items.forEach(item => { const u = KOJI_PRICE[item]; if(u!=null) total += u*count; });
+    items.forEach(item => {
+      var du = dairiOK ? dairiOK[item] : null;
+      const u = (du != null && du > 0) ? du : KOJI_PRICE[item];
+      if(u!=null) total += u*count;
+    });
     if(total) a.kojiHi = String(total);
   }
   // 材工（材料費＋工事費）— 手動入力がなければ自動計算
@@ -6148,17 +6172,28 @@ function calcZairyoHi(targetId) {
   const prefix = targetId.startsWith('de-') ? 'de-' : '';
   const msId = prefix + 'f-teian-content';
   const countId = prefix + 'f-teian-count';
+  const dairiNoId = prefix + 'f-dairi-no';
   const items = getSelectedItems(msId);
   const count = Math.max(1, parseInt(document.getElementById(countId)?.value || '1') || 1);
+
+  // 代理店番号があれば代理店マスタの卸値を優先
+  const dairiNo = (document.getElementById(dairiNoId)?.value || '').trim();
+  let dairiPrices = null;
+  if(dairiNo && settingsData && settingsData.dairiList) {
+    var dcZ = settingsData.dairiList.find(function(d){return d.no === dairiNo;});
+    if(dcZ && dcZ.oroshiZairyo) dairiPrices = dcZ.oroshiZairyo;
+  }
 
   let total = 0;
   const breakdown = [];
   items.forEach(item => {
-    const unit = ZAIRYO_PRICE[item];
+    const dairiUnit = dairiPrices ? dairiPrices[item] : null;
+    const unit = (dairiUnit != null && dairiUnit > 0) ? dairiUnit : ZAIRYO_PRICE[item];
+    const isDairi = (dairiUnit != null && dairiUnit > 0);
     if(unit != null) {
       const amount = unit * count;
       total += amount;
-      breakdown.push(`${item}×${count}=¥${amount.toLocaleString()}`);
+      breakdown.push(item + '×' + count + '=¥' + amount.toLocaleString() + (isDairi ? '(代理店)' : ''));
     }
   });
 
@@ -6166,7 +6201,7 @@ function calcZairyoHi(targetId) {
   const preview = document.getElementById(targetId+'-preview');
   if(preview) {
     preview.textContent = total
-      ? `計算内訳: ${breakdown.join(' / ')} → 合計 ¥${total.toLocaleString()}`
+      ? '計算内訳: ' + breakdown.join(' / ') + ' → 合計 ¥' + total.toLocaleString()
       : '対象項目の単価がありません';
   }
 }
@@ -6176,17 +6211,28 @@ function calcKojiHi(targetId) {
   const prefix = targetId.startsWith('de-') ? 'de-' : '';
   const msId = prefix + 'f-koji-content';
   const countId = prefix + 'f-koji-count';
+  const dairiNoId = prefix + 'f-dairi-no';
   const items = getSelectedItems(msId);
   const count = Math.max(1, parseInt(document.getElementById(countId)?.value || '1') || 1);
+
+  // 代理店番号があれば代理店マスタの卸値を優先
+  const dairiNo = (document.getElementById(dairiNoId)?.value || '').trim();
+  let dairiPrices = null;
+  if(dairiNo && settingsData && settingsData.dairiList) {
+    var dcK = settingsData.dairiList.find(function(d){return d.no === dairiNo;});
+    if(dcK && dcK.oroshiKoji) dairiPrices = dcK.oroshiKoji;
+  }
 
   let total = 0;
   const breakdown = [];
   items.forEach(item => {
-    const unit = KOJI_PRICE[item];
+    const dairiUnit = dairiPrices ? dairiPrices[item] : null;
+    const unit = (dairiUnit != null && dairiUnit > 0) ? dairiUnit : KOJI_PRICE[item];
+    const isDairi = (dairiUnit != null && dairiUnit > 0);
     if(unit != null) {
       const amount = unit * count;
       total += amount;
-      breakdown.push(`${item}×${count}=¥${amount.toLocaleString()}`);
+      breakdown.push(item + '×' + count + '=¥' + amount.toLocaleString() + (isDairi ? '(代理店)' : ''));
     }
   });
 
@@ -6194,7 +6240,7 @@ function calcKojiHi(targetId) {
   const preview = document.getElementById(targetId+'-preview');
   if(preview) {
     preview.textContent = total
-      ? `計算内訳: ${breakdown.join(' / ')} → 合計 ¥${total.toLocaleString()}`
+      ? '計算内訳: ' + breakdown.join(' / ') + ' → 合計 ¥' + total.toLocaleString()
       : '対象項目の単価がありません';
   }
 }
