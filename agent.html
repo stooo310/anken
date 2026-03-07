@@ -868,18 +868,20 @@ function openDetail(id) {
   var arariVal = priceNum > 0 ? Math.round(priceNum - zaikoVal) : 0;
   var keisanVal = priceNum > 0 ? Math.round(priceNum - zaikoVal - shinpanVal - dKotsu) : 0;
   var feeVal = calcAgentFee(a);
+  // 粗利ベース・売上ベースの場合は信販手数料を非表示
+  var showShinpan = dc.feeType === 'keisan' || !dc.feeType;
 
   html += '<div class="detail-section"><div class="detail-section-title">💰 費用情報</div><div class="detail-grid">';
   html += detailItem('物件価格（税込）', fmtYen(a.price));
-  html += detailItem('信販など手数料', shinpanVal ? fmtYen(shinpanVal) : '-');
+  if(showShinpan) html += detailItem('信販など手数料', shinpanVal ? fmtYen(shinpanVal) : '-');
   html += detailItem('材料費（卸値）', fmtYen(dZairyo));
   html += detailItem('交通費', dKotsu ? fmtYen(dKotsu) : '-');
   html += detailItem('工事費（卸値）', fmtYen(dKoji));
-  html += detailItem('計算対象金額', keisanVal > 0 ? fmtYen(keisanVal) : '-');
+  if(showShinpan) html += detailItem('計算対象金額', keisanVal > 0 ? fmtYen(keisanVal) : '-');
   html += detailItem('材工（税込）', zaikoVal ? fmtYen(zaikoVal) : '-');
   html += detailItem('手数料（自動計算）', '<span style="color:var(--accent);font-weight:700;">' + fmtYen(feeVal) + '</span>');
   html += detailItem('粗利金額', arariVal > 0 ? fmtYen(arariVal) : '-');
-  html += detailItem('信販会社', a.shinpanCo || '-');
+  if(showShinpan) html += detailItem('信販会社', a.shinpanCo || '-');
   html += detailItem('入金日', fmtDate(a.nyukinDate));
   html += '</div></div>';
 
