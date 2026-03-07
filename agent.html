@@ -792,8 +792,8 @@ function calcAgentFee(a) {
 
   switch (dc.feeType) {
     case 'arari':
-      // パターンA: (物件価格 - 材工) × 率
-      return Math.round((price - zaiko) * rate);
+      // パターンA: (物件価格 - 材工 - 交通費) × 率
+      return Math.round((price - zaiko - kotsu) * rate);
 
     case 'uriage':
       // パターンB: 物件価格 × 率
