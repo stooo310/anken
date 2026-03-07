@@ -1201,16 +1201,18 @@ function renderMeisai() {
   html += '</div>';
 
   // 明細テーブル
+  var meisaiDc = getDairiConfig();
+  var showKeisan = meisaiDc.feeType === 'keisan' || !meisaiDc.feeType;
   html += '<div style="overflow-x:auto;">';
   html += '<table class="meisai-table">';
   html += '<thead><tr>';
   html += '<th>受注番号</th><th>受注日</th><th>ステータス</th><th>提案内容</th><th>社名</th><th>住所</th>';
   html += '<th>工事日③</th><th>契約種別</th><th>金額(税込)</th><th>物件価格(税込)</th>';
-  html += '<th>材工</th><th>リプその他</th><th>交通費</th><th>計算対象</th><th>手数料</th><th>歩合確定日</th>';
+  html += '<th>材工</th><th>リプその他</th><th>交通費</th>'+(showKeisan?'<th>計算対象</th>':'')+'<th>手数料</th><th>歩合確定日</th>';
   html += '</tr></thead><tbody>';
 
   if (monthAnken.length === 0) {
-    html += '<tr><td colspan="16" style="text-align:center;padding:24px;color:var(--text3);">該当月の歩合確定データはありません</td></tr>';
+    html += '<tr><td colspan="'+(showKeisan?16:15)+'" style="text-align:center;padding:24px;color:var(--text3);">該当月の歩合確定データはありません</td></tr>';
   } else {
     monthAnken.forEach(function(a) {
       var fee = calcAgentFee(a);
@@ -1234,7 +1236,7 @@ function renderMeisai() {
       html += '<td class="td-amount">'+fmtYen(zaikoVal||'')+'</td>';
       html += '<td class="td-amount">'+fmtYen(a.ripuSonota)+'</td>';
       html += '<td class="td-amount">'+fmtYen(a.ripuKotsu)+'</td>';
-      html += '<td class="td-amount">'+fmtYen(keisanCalc)+'</td>';
+      if(showKeisan) html += '<td class="td-amount">'+fmtYen(keisanCalc)+'</td>';
       html += '<td class="td-amount" style="color:var(--accent);font-weight:700;">'+fmtYen(fee)+'</td>';
       html += '<td>'+fmtDate(a.buai)+'</td>';
       html += '</tr>';
@@ -1260,7 +1262,7 @@ function renderMeisai() {
     html += '<td>¥'+totalZaiko.toLocaleString()+'</td>';
     html += '<td>¥'+totalSonota.toLocaleString()+'</td>';
     html += '<td>¥'+totalKotsu.toLocaleString()+'</td>';
-    html += '<td>¥'+totalKeisanCalc.toLocaleString()+'</td>';
+    if(showKeisan) html += '<td>¥'+totalKeisanCalc.toLocaleString()+'</td>';
     html += '<td>¥'+totalFee.toLocaleString()+'</td>';
     html += '<td></td>';
     html += '</tr>';
