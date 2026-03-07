@@ -2597,14 +2597,6 @@ function saveDetailEdit() {
       });
     });
   }
-  // 即時保存（デバウンスをキャンセルして即座にbulk保存）
-  if(_saveAnkenTimer) clearTimeout(_saveAnkenTimer);
-  _saveAnkenTimer = null;
-  if (authToken) {
-    apiCall('bulkSaveAnken', { data: ankenList }).then(function(r) {
-      if (!r.ok) console.error('案件保存エラー:', r.error);
-    }).catch(function(e) { console.error('案件保存通信エラー:', e); });
-  }
   // 材工の自動再計算（材料費・工事費が両方入力済みで材工が未入力の場合のみ）
   var _zairyo = parseFloat(a.zairyoHi)||0;
   var _koji = parseFloat(a.kojiHi)||0;
@@ -2617,6 +2609,14 @@ function saveDetailEdit() {
   }
   if(parseFloat(a.kojiHi)) {
     a.dairiKoji = a.kojiHi;
+  }
+  // 即時保存（デバウンスをキャンセルして即座にbulk保存）
+  if(_saveAnkenTimer) clearTimeout(_saveAnkenTimer);
+  _saveAnkenTimer = null;
+  if (authToken) {
+    apiCall('bulkSaveAnken', { data: ankenList }).then(function(r) {
+      if (!r.ok) console.error('案件保存エラー:', r.error);
+    }).catch(function(e) { console.error('案件保存通信エラー:', e); });
   }
   saveAnkenSingle(a);
   renderAnkenTable();
