@@ -614,6 +614,7 @@ function showPage(pageId) {
 function fmtYen(n) { var v = Math.round(Number(n)||0); return v ? '¥'+v.toLocaleString() : '-'; }
 function fmtDate(d) { return d ? String(d).substring(0,10) : '-'; }
 function isDairiUser() { return currentUser && (currentUser.role === 'dairi' || currentUser.role === 'powerDairi'); }
+function isMemberUser() { return currentUser && currentUser.role === 'member'; }
 function isManagerUser() { return currentUser && currentUser.role === 'manager'; }
 function isAdminUser() { return currentUser && currentUser.role === 'admin'; }
 
@@ -699,7 +700,7 @@ function renderMasterTable() {
     return matchQ && matchCo && matchSt;
   });
 
-  var _d = isDairiUser();
+  var _d = isDairiUser() || isMemberUser();
   document.getElementById('master-thead').innerHTML = '<th>進捗</th><th>受注日</th><th>代理店</th><th>電力会社</th><th>顧客名</th><th>申込者名</th><th>供給地点番号</th><th>契約種別</th><th>お支払</th><th>代理店手数料</th>'+(_d?'':'<th>電力会社→弊社%</th>');
   document.getElementById('master-tbody').innerHTML = filtered.map(function(m) {
     return '<tr onclick="openMasterModal('+m.id+')">'
@@ -791,7 +792,7 @@ function openMasterModal(id, isCopy) {
 
   var html = MASTER_FIELDS.map(function(f) {
     // 代理店には電力会社→弊社%、Stooo担当を非表示
-    if (_isDairi && (f.key === 'companyFeeRate' || f.key === 'stoooTanto' || f.key === 'stoooContact')) return '';
+    if ((_isDairi || isMemberUser()) && (f.key === 'companyFeeRate' || f.key === 'stoooTanto' || f.key === 'stoooContact')) return '';
     var val = data[f.key] || '';
     var cls = f.full ? 'form-group form-full' : 'form-group';
     var readonlyAttr = isViewOnly ? ' readonly disabled style="background:#f1f5f9;opacity:.7;"' : '';
@@ -905,7 +906,7 @@ function renderMonthlyTable() {
   // サマリー
   var total = filtered.reduce(function(s,m){return s+(Number(m.commission)||0);}, 0);
   var totalDairi = filtered.reduce(function(s,m){return s+(Number(m.dairiShare)||0);}, 0);
-  var _d = isDairiUser();
+  var _d = isDairiUser() || isMemberUser();
   if (_d) {
     document.getElementById('monthly-summary').innerHTML = '<div class="summary-grid">'
       + '<div class="summary-item" style="border-top-color:var(--purple);"><div class="summary-label">手数料合計</div><div class="summary-value" style="color:var(--purple);">'+fmtYen(totalDairi)+'</div><div class="summary-sub">'+filtered.length+'件</div></div>'
