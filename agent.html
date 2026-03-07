@@ -1207,12 +1207,12 @@ function renderMeisai() {
   html += '<table class="meisai-table">';
   html += '<thead><tr>';
   html += '<th>受注番号</th><th>受注日</th><th>ステータス</th><th>提案内容</th><th>社名</th><th>住所</th>';
-  html += '<th>工事日③</th><th>契約種別</th><th>金額(税込)</th><th>物件価格(税込)</th>';
+  html += '<th>工事日③</th><th>契約種別</th><th>物件価格(税込)</th>';
   html += '<th>材工</th><th>リプその他</th><th>交通費</th>'+(showKeisan?'<th>計算対象</th>':'')+'<th>手数料</th><th>歩合確定日</th>';
   html += '</tr></thead><tbody>';
 
   if (monthAnken.length === 0) {
-    html += '<tr><td colspan="'+(showKeisan?16:15)+'" style="text-align:center;padding:24px;color:var(--text3);">該当月の歩合確定データはありません</td></tr>';
+    html += '<tr><td colspan="'+(showKeisan?15:14)+'" style="text-align:center;padding:24px;color:var(--text3);">該当月の歩合確定データはありません</td></tr>';
   } else {
     monthAnken.forEach(function(a) {
       var fee = calcAgentFee(a);
@@ -1231,7 +1231,6 @@ function renderMeisai() {
       html += '<td title="'+(a.addr1||'')+'">'+(a.addr1||'-')+'</td>';
       html += '<td>'+fmtDate(a.shunkoDate)+'</td>';
       html += '<td>'+(a.keiyakuType||'-')+'</td>';
-      html += '<td class="td-amount">'+fmtYen(a.price)+'</td>';
       html += '<td class="td-amount">'+fmtYen(a.price)+'</td>';
       html += '<td class="td-amount">'+fmtYen(zaikoVal||'')+'</td>';
       html += '<td class="td-amount">'+fmtYen(a.ripuSonota)+'</td>';
@@ -1256,8 +1255,7 @@ function renderMeisai() {
       return s+(p>0?Math.round(p-z-sh-kt):0);
     },0);
     html += '<tr class="total-row">';
-    html += '<td colspan="8" style="text-align:right;padding-right:20px;">合計</td>';
-    html += '<td>¥'+totalPrice.toLocaleString()+'</td>';
+    html += '<td colspan="7" style="text-align:right;padding-right:20px;">合計</td>';
     html += '<td>¥'+totalPrice.toLocaleString()+'</td>';
     html += '<td>¥'+totalZaiko.toLocaleString()+'</td>';
     html += '<td>¥'+totalSonota.toLocaleString()+'</td>';
@@ -1394,7 +1392,6 @@ function printMeisai() {
       + '<td>'+fmtDate(a.shunkoDate)+'</td>'
       + '<td>'+(a.keiyakuType||'-')+'</td>'
       + '<td style="text-align:right;">'+fmtYen(a.price)+'</td>'
-      + '<td style="text-align:right;">'+fmtYen(a.price)+'</td>'
       + '<td style="text-align:right;">'+fmtYen(zk)+'</td>'
       + '<td style="text-align:right;">'+fmtYen(a.ripuSonota)+'</td>'
       + '<td style="text-align:right;">'+fmtYen(a.ripuKotsu)+'</td>'
@@ -1418,8 +1415,7 @@ function printMeisai() {
     tKei+=p>0?Math.round(p-z-sh-kt):0;
   });
   rows += '<tr style="font-weight:700;background:#f0f5ff;">'
-    + '<td colspan="8" style="text-align:right;">合計</td>'
-    + '<td style="text-align:right;">¥'+tPrice.toLocaleString()+'</td>'
+    + '<td colspan="7" style="text-align:right;">合計</td>'
     + '<td style="text-align:right;">¥'+tPrice.toLocaleString()+'</td>'
     + '<td style="text-align:right;">¥'+tZk.toLocaleString()+'</td>'
     + '<td style="text-align:right;">¥'+tSon.toLocaleString()+'</td>'
@@ -1496,7 +1492,7 @@ function printMeisai() {
     + '<table>'
     + '<thead><tr>'
     + '<th>受注番号</th><th>受注日</th><th>ステータス</th><th>提案内容</th><th>社名</th><th>住所</th>'
-    + '<th>工事日③</th><th>契約種別</th><th>金額(税込)</th><th>物件価格(税込)</th>'
+    + '<th>工事日③</th><th>契約種別</th><th>物件価格(税込)</th>'
     + '<th>材工</th><th>リプその他</th><th>交通費</th><th>計算対象</th><th>手数料</th><th>歩合確定日</th>'
     + '</tr></thead><tbody>'
     + rows
