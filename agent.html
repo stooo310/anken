@@ -1157,10 +1157,15 @@ function renderMeisai() {
   var dispMonth = ymParts[0]+'年'+parseInt(ymParts[1])+'月';
 
   // 歩合確定月基準で抽出
-  var monthAnken = ankenList.filter(function(a) {
+  var monthAnkenAll = ankenList.filter(function(a) {
     var matchMonth = (a.buai||'').substring(0,7) === ym;
     var matchDairi = !_meisaiDairiFilter || (a.dairiNo||'') === _meisaiDairiFilter || (a.dairiNo2||'') === _meisaiDairiFilter;
     return matchMonth && matchDairi;
+  });
+
+  // 月額手数料対象を除外した一括手数料対象
+  var monthAnken = monthAnkenAll.filter(function(a) {
+    return !isMonthlyFeeTarget(a);
   });
 
   var html = '';
@@ -1187,7 +1192,7 @@ function renderMeisai() {
   html += '<div class="meisai-card">';
   html += '<div class="meisai-summary">';
   html += '<div class="meisai-summary-item"><div class="meisai-summary-label">'+dispMonth+' 手数料合計</div><div class="meisai-summary-value">¥'+grandTotalFee.toLocaleString()+'</div></div>';
-  html += '<div class="meisai-summary-item"><div class="meisai-summary-label">対象案件数</div><div class="meisai-summary-value" style="color:var(--text);">'+(monthAnken.length + monthlyAnken.length)+'<span style="font-size:12px;color:var(--text3);margin-left:4px;">件</span></div></div>';
+  html += '<div class="meisai-summary-item"><div class="meisai-summary-label">対象案件数</div><div class="meisai-summary-value" style="color:var(--text);">'+(monthAnken.length)+'<span style="font-size:12px;color:var(--text3);margin-left:4px;">件</span>'+(monthlyAnken.length > 0 ? ' <span style="font-size:11px;color:var(--purple);">＋月額'+monthlyAnken.length+'件</span>' : '')+'</div></div>';
   html += '<div class="meisai-summary-item"><div class="meisai-summary-label">一括手数料</div><div class="meisai-summary-value" style="color:var(--accent2);">¥'+totalFee.toLocaleString()+'</div></div>';
   if (totalMonthlyFee > 0) {
     html += '<div class="meisai-summary-item"><div class="meisai-summary-label">🔄 月額手数料</div><div class="meisai-summary-value" style="color:var(--purple);">¥'+totalMonthlyFee.toLocaleString()+'</div></div>';
@@ -1362,7 +1367,7 @@ function printMeisai() {
   var dispMonth = ymParts[0]+'年'+parseInt(ymParts[1])+'月';
 
   var monthAnken = ankenList.filter(function(a) {
-    return (a.buai||'').substring(0,7) === ym;
+    return (a.buai||'').substring(0,7) === ym && !isMonthlyFeeTarget(a);
   });
 
   var totalFee = monthAnken.reduce(function(s,a){return s+calcAgentFee(a);},0);
