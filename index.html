@@ -2610,6 +2610,10 @@ function saveDetailEdit() {
   if(parseFloat(a.kojiHi)) {
     a.dairiKoji = a.kojiHi;
   }
+  // 交通費②を代理店向け交通費に連動
+  if(parseFloat(a.ripuKotsu)) {
+    a.dairiKotsu = a.ripuKotsu;
+  }
   // 即時保存（デバウンスをキャンセルして即座にbulk保存）
   if(_saveAnkenTimer) clearTimeout(_saveAnkenTimer);
   _saveAnkenTimer = null;
@@ -6082,6 +6086,10 @@ function autoCalcCosts(a) {
   }
   if(!parseFloat(a.dairiKoji) && parseFloat(a.kojiHi)) {
     a.dairiKoji = a.kojiHi;
+  }
+  // 交通費②を代理店向け交通費に連動（未入力時のみ）
+  if(!parseFloat(a.dairiKotsu) && parseFloat(a.ripuKotsu)) {
+    a.dairiKotsu = a.ripuKotsu;
   }
 }
 
