@@ -4196,6 +4196,9 @@ function renderSettingsMonthTable() {
     {key:'eigyoDays', label:'稼働日数', ph:'20'},
     {key:'kadoDays',  label:'経過日数', ph:'10'},
     {key:'kpiChakuchi', label:'目標P', ph:'250'},
+    {key:'kpiTankaM', label:'目標単価P', ph:''},
+    {key:'kpiKensuM', label:'目標件数', ph:''},
+    {key:'kpiSetchiM', label:'目標設置率%', ph:''},
   ].map(function(r) {
     return '<tr style="border-bottom:1px solid var(--border);">'
       + '<td style="padding:6px 10px;font-size:12px;font-weight:600;white-space:nowrap;background:var(--bg2);">' + r.label + '</td>'
@@ -4412,6 +4415,9 @@ function getMonthSetting(yearMonth) {
     eigyoDays:   md.eigyoDays   || settingsData.eigyoDays   || 0,
     kadoDays:    md.kadoDays    || settingsData.kadoDays    || 0,
     kpiChakuchi: md.kpiChakuchi || settingsData.kpiChakuchi || 0,
+    kpiTankaM:   md.kpiTankaM   || 0,
+    kpiKensuM:   md.kpiKensuM   || 0,
+    kpiSetchiM:  md.kpiSetchiM  || 0,
   };
 }
 
@@ -4878,12 +4884,26 @@ function buildSujiPTable(s, monthAnken, periodMonths, kojiTotalShinchoku, totalK
   var nichiwariTargetP = eigyoDays > 0 ? targetChakuchiP / eigyoDays * kadoDays : 0;
   var chakuchiP = nichiwariTargetP > 0 ? Math.floor(currentP / nichiwariTargetP * targetChakuchiP) : 0;
   var teateP = Math.floor(chakuchiP * 0.05);
-  var kpiTankaP = s.kpiTanka || 0;
+  // 月別目標値を取得（期間分を合算/平均）
+  var kpiTankaP = 0;
+  var kpiKensuTotal = 0;
+  var kpiSetchiTotal = 0;
+  var kpiSetchiCount = 0;
+  periodMonths.forEach(function(pair) {
+    var ym = pair[0] + '-' + String(pair[1]).padStart(2,'0');
+    var ms = getMonthSetting(ym);
+    if(ms.kpiTankaM) kpiTankaP = ms.kpiTankaM; // 最新月の値を使用
+    kpiKensuTotal += (ms.kpiKensuM || 0);
+    if(ms.kpiSetchiM) { kpiSetchiTotal += ms.kpiSetchiM; kpiSetchiCount++; }
+  });
+  // フォールバック: 月別設定がなければ従来のグローバル設定
+  if(!kpiTankaP) kpiTankaP = s.kpiTanka || 0;
+  var juchuTargetKen = kpiKensuTotal || ((kpiTankaP > 0 && setchiRt > 0) ? Math.round(targetChakuchiP / setchiRt / kpiTankaP) : (kpiKensu || 0));
+  var kpiSetchiAvg = kpiSetchiCount > 0 ? Math.round(kpiSetchiTotal / kpiSetchiCount) : (s.kpiSetchi || 0);
   var eigyoDayRate2 = eigyoDays > 0 ? kadoDays / eigyoDays : 0;
   var achP = targetChakuchiP > 0 ? Math.round(currentP / targetChakuchiP * 100) : null;
   var nichiwariP = targetChakuchiP > 0 && eigyoDayRate2 > 0 ? Math.round(currentP / (targetChakuchiP * eigyoDayRate2) * 100) : null;
   var achTnk = kpiTankaP > 0 ? Math.round(tankaPval / kpiTankaP * 100) : null;
-  var juchuTargetKen = (kpiTankaP > 0 && setchiRt > 0) ? Math.round(targetChakuchiP / setchiRt / kpiTankaP) : (kpiKensu || 0);
   var achKen = juchuTargetKen > 0 ? Math.round(totalKensu / juchuTargetKen * 100) : null;
   var nichiwariKen = juchuTargetKen > 0 && eigyoDayRate2 > 0 ? Math.round(totalKensu / (juchuTargetKen * eigyoDayRate2) * 100) : null;
   // 設置率 = 進捗粗利合計 ÷ 計算対象金額合計
@@ -4900,8 +4920,8 @@ function buildSujiPTable(s, monthAnken, periodMonths, kojiTotalShinchoku, totalK
   function tgt(v, u) { u = u||'P'; return '<td style="padding:10px 16px;text-align:center;font-size:13px;color:var(--text3);">' + (v||'—') + u + '</td>'; }
 
   var chakuchiDisplay = targetChakuchiP > 0 ? chakuchiP + ' P' : '<span style="font-size:13px;color:#ef4444;">目標P未設定</span>';
-  var setchiDiff = setchiActual - (s.kpiSetchi || 0);
-  var setchiColor = setchiActual >= (s.kpiSetchi||100) ? '#16a34a' : setchiActual >= 80 ? 'var(--accent)' : '#ef4444';
+  var setchiDiff = setchiActual - (kpiSetchiAvg || 0);
+  var setchiColor = setchiActual >= (kpiSetchiAvg||100) ? '#16a34a' : setchiActual >= 80 ? 'var(--accent)' : '#ef4444';
 
   return '<div class="dash-card" style="margin-bottom:20px;">'
     + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">'
@@ -4923,7 +4943,7 @@ function buildSujiPTable(s, monthAnken, periodMonths, kojiTotalShinchoku, totalK
     + '<tr style="border-bottom:1px solid var(--border);"><td style="padding:10px 16px;font-size:13px;font-weight:600;">進捗P</td>' + val(currentP) + tgt(targetChakuchiP) + pct(achP) + pct(nichiwariP) + '</tr>'
     + '<tr style="border-bottom:1px solid var(--border);"><td style="padding:10px 16px;font-size:13px;font-weight:600;">単価</td>' + val(tankaPval) + tgt(kpiTankaP) + pct(achTnk) + '<td style="padding:10px 16px;text-align:center;font-size:13px;color:var(--text3);">—</td></tr>'
     + '<tr style="border-bottom:1px solid var(--border);"><td style="padding:10px 16px;font-size:13px;font-weight:600;">件数</td>' + val(totalKensu,'件') + tgt(juchuTargetKen,'件') + pct(achKen) + pct(nichiwariKen) + '</tr>'
-    + '<tr><td style="padding:10px 16px;font-size:13px;font-weight:600;">設置率</td>' + val(setchiActual,'%') + tgt(s.kpiSetchi,'%')
+    + '<tr><td style="padding:10px 16px;font-size:13px;font-weight:600;">設置率</td>' + val(setchiActual,'%') + tgt(kpiSetchiAvg,'%')
     + '<td style="padding:10px 16px;text-align:center;font-size:14px;font-weight:700;color:' + setchiColor + ';">' + (setchiDiff>=0?'+':'') + setchiDiff + '%</td>'
     + '<td style="padding:10px 16px;text-align:center;font-size:13px;color:var(--text3);">—</td></tr>'
     + '</tbody></table></div>';
@@ -4954,8 +4974,8 @@ function buildSujiMonthTable(periodMonths, periodLabel, s) {
     }, 0);
     var mP = Math.floor(mShinchoku / 10000);
     var mKensu = mAnken.length;
-    var mNyukin = mAnken.filter(function(a){ return a.status==='入金'; }).length;
-    var mSetchi = mKensu > 0 ? Math.round(mNyukin/mKensu*100) : 0;
+    var mTotalKeisan = mAnken.reduce(function(s,a){ return s + Math.max(0, getKeisanVal(a)); }, 0);
+    var mSetchi = mTotalKeisan > 0 ? Math.round(mShinchoku/mTotalKeisan*100) : 0;
     var mTargetP = ms.kpiChakuchi || 0;
     var mAch = mTargetP > 0 ? Math.round(mP/mTargetP*100) : null;
     var mRate = mTargetP > 0 && ms.eigyoDays > 0 && ms.kadoDays > 0 ? Math.round(mP / (mTargetP * ms.kadoDays/ms.eigyoDays) * 100) : null;
@@ -4978,7 +4998,7 @@ function buildSujiMonthTable(periodMonths, periodLabel, s) {
       + '<td style="padding:7px 10px;text-align:right;font-size:13px;font-weight:700;color:' + cc(mAch) + ';">' + (mAch!==null?mAch+'%':'—') + '</td>'
       + '<td style="padding:7px 10px;text-align:right;font-size:12px;color:' + cc(mRate) + ';">' + (mRate!==null?mRate+'%':'—') + '</td>'
       + '<td style="padding:7px 10px;text-align:right;font-size:13px;">' + mKensu + '件</td>'
-      + '<td style="padding:7px 10px;text-align:right;font-size:13px;color:' + (mSetchi>=(s.kpiSetchi||100)?'#16a34a':'var(--text)') + ';">' + mSetchi + '%</td>'
+      + '<td style="padding:7px 10px;text-align:right;font-size:13px;color:' + (mSetchi>=(ms.kpiSetchiM||s.kpiSetchi||100)?'#16a34a':'var(--text)') + ';">' + mSetchi + '%</td>'
       + mMemberCells + '</tr>';
   }).join('');
   return '<div class="dash-card" style="margin-bottom:20px;overflow-x:auto;">'
