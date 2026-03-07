@@ -2611,6 +2611,13 @@ function saveDetailEdit() {
   if(_zairyo + _koji > 0 && !parseFloat(a.zaiko)) {
     a.zaiko = String(_zairyo + _koji);
   }
+  // 代理店向け卸値の自動コピー（手入力がなければ工事費・材料費をコピー）
+  if(!parseFloat(a.dairiZairyo) && parseFloat(a.zairyoHi)) {
+    a.dairiZairyo = a.zairyoHi;
+  }
+  if(!parseFloat(a.dairiKoji) && parseFloat(a.kojiHi)) {
+    a.dairiKoji = a.kojiHi;
+  }
   saveAnkenSingle(a);
   renderAnkenTable();
   if(document.getElementById('page-koji').style.display !== 'none') renderKoji();
@@ -6068,9 +6075,15 @@ function autoCalcCosts(a) {
   const shinpan = parseFloat(a.shinpan)||0;
   const keisan = price - zaiko - shinpan;
   if(!parseFloat(a.keisan) && keisan > 0) a.keisan = String(keisan);
-}
 
-function calcRipuKotsu(targetId) {
+  // ★ 代理店向け卸値の自動コピー（手入力がなければ工事費・材料費をコピー）
+  if(!parseFloat(a.dairiZairyo) && parseFloat(a.zairyoHi)) {
+    a.dairiZairyo = a.zairyoHi;
+  }
+  if(!parseFloat(a.dairiKoji) && parseFloat(a.kojiHi)) {
+    a.dairiKoji = a.kojiHi;
+  }
+}(targetId) {
   const prefix = targetId.startsWith('de-') ? 'de-' : '';
   const dairiNo = getFieldStr(prefix, 'f-dairi-no');
   const keiyakuType = getFieldStr(prefix, 'f-keiyaku-type');
