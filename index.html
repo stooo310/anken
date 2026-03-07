@@ -4886,8 +4886,9 @@ function buildSujiPTable(s, monthAnken, periodMonths, kojiTotalShinchoku, totalK
   var juchuTargetKen = (kpiTankaP > 0 && setchiRt > 0) ? Math.round(targetChakuchiP / setchiRt / kpiTankaP) : (kpiKensu || 0);
   var achKen = juchuTargetKen > 0 ? Math.round(totalKensu / juchuTargetKen * 100) : null;
   var nichiwariKen = juchuTargetKen > 0 && eigyoDayRate2 > 0 ? Math.round(totalKensu / (juchuTargetKen * eigyoDayRate2) * 100) : null;
-  var nyukinCount = monthAnken.filter(function(a){ return a.status === '入金'; }).length;
-  var setchiActual = totalKensu > 0 ? Math.round(nyukinCount / totalKensu * 100) : 0;
+  // 設置率 = 進捗粗利合計 ÷ 計算対象金額合計
+  var totalKeisanForSetchi = monthAnken.reduce(function(s,a){ return s + Math.max(0, getKeisanVal(a)); }, 0);
+  var setchiActual = totalKeisanForSetchi > 0 ? Math.round(kojiTotalShinchoku / totalKeisanForSetchi * 100) : 0;
 
   function pct(v, good) {
     good = good || 100;
