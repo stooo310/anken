@@ -462,11 +462,16 @@ async function doLogin() {
       document.getElementById('user-info').textContent = (currentUser.tantoName || currentUser.username) + ' (' + currentUser.role + ')';
       // 代理店の場合、管理者メニューを非表示
       var isDairi = currentUser.role === 'dairi' || currentUser.role === 'powerDairi';
+      var isMember = currentUser.role === 'member';
       var isManager = currentUser.role === 'manager';
       document.querySelectorAll('.nav-item').forEach(function(n) {
         var text = n.textContent;
         // 代理店: ダッシュボード・データ取り込み・代理店支払・案件マスタ取込を非表示
         if (isDairi && (text.includes('データ取り込み') || text.includes('代理店支払') || text.includes('案件マスタ取込') || text.includes('ダッシュボード'))) {
+          n.style.display = 'none';
+        }
+        // member: 案件一覧と月次手数料のみ表示
+        if (isMember && (text.includes('データ取り込み') || text.includes('代理店支払') || text.includes('案件マスタ取込') || text.includes('ダッシュボード'))) {
           n.style.display = 'none';
         }
         // manager: 案件マスタ取込・代理店支払を非表示
@@ -475,8 +480,8 @@ async function doLogin() {
         }
       });
       await loadData();
-      // 代理店は案件一覧をデフォルト表示
-      if (isDairi) showPage('page-master');
+      // 代理店・メンバーは案件一覧をデフォルト表示
+      if (isDairi || isMember) showPage('page-master');
     } else {
       var err = document.getElementById('login-error');
       err.textContent = res.error || 'ログインエラー';
@@ -506,6 +511,22 @@ async function loadData() {
     ]);
     if (mRes.ok) masterList = mRes.data || [];
     if (moRes.ok) monthlyList = moRes.data || [];
+
+    // memberは自分の案件のみに絞り込み（stoooTantoまたはdairiTantoで判定）
+    if (currentUser && currentUser.role === 'member') {
+      var myName = (currentUser.tantoName || '').replace(/\s/g, '');
+      if (myName) {
+        masterList = masterList.filter(function(m) {
+          var t = (m.stoooTanto || m.dairiTanto || '').replace(/\s/g, '');
+          return t === myName;
+        });
+        // 月次手数料も担当者でフィルタ
+        var myDairiNos = masterList.map(function(m) { return m.dairiNo; }).filter(Boolean);
+        monthlyList = monthlyList.filter(function(m) {
+          return myDairiNos.indexOf(m.dairiNo) >= 0;
+        });
+      }
+    }
 
     // 日付型フィールドをYYYY-MM形式に正規化（GASが日付型として返す場合の対策）
     monthlyList.forEach(function(m) {
