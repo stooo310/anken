@@ -6083,7 +6083,9 @@ function autoCalcCosts(a) {
   if(!parseFloat(a.dairiKoji) && parseFloat(a.kojiHi)) {
     a.dairiKoji = a.kojiHi;
   }
-}(targetId) {
+}
+
+function calcRipuKotsu(targetId) {
   const prefix = targetId.startsWith('de-') ? 'de-' : '';
   const dairiNo = getFieldStr(prefix, 'f-dairi-no');
   const keiyakuType = getFieldStr(prefix, 'f-keiyaku-type');
