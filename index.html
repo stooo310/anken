@@ -3937,8 +3937,9 @@ function renderHoseiPage() {
   if(members.length === 0) { body.innerHTML = ''; return; }
 
   var m = members[hoseiSelectedMember];
-  var mIdx = hoseiSelectedMember;
   if(!m) return;
+  var allMembersForIdx = settingsData.members || [];
+  var mIdx = allMembersForIdx.indexOf(m);
 
   var baseMonth = settingsData.hoseiMonth || (new Date().getFullYear() + '-' + String(new Date().getMonth()+1).padStart(2,'0'));
   var periodMonths = getSujiMonths(hoseiPeriod, baseMonth);
