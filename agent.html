@@ -868,19 +868,22 @@ function openDetail(id) {
   var arariVal = priceNum > 0 ? Math.round(priceNum - zaikoVal) : 0;
   var keisanVal = priceNum > 0 ? Math.round(priceNum - zaikoVal - shinpanVal - dKotsu) : 0;
   var feeVal = calcAgentFee(a);
-  // 粗利ベース・売上ベースの場合は信販手数料を非表示
+  var isUriage = dc.feeType === 'uriage';
+  // keisanのみ信販・計算対象を表示、urirageは信販のみ表示（粗利・材工は非表示）
   var showShinpan = dc.feeType === 'keisan' || !dc.feeType;
+  var showZaiko   = !isUriage;
+  var showArari   = !isUriage;
 
   html += '<div class="detail-section"><div class="detail-section-title">💰 費用情報</div><div class="detail-grid">';
   html += detailItem('物件価格（税込）', fmtYen(a.price));
-  if(showShinpan) html += detailItem('信販など手数料', shinpanVal ? fmtYen(shinpanVal) : '-');
-  html += detailItem('材料費（卸値）', fmtYen(dZairyo));
-  html += detailItem('交通費', dKotsu ? fmtYen(dKotsu) : '-');
-  html += detailItem('工事費（卸値）', fmtYen(dKoji));
+  if(showShinpan || isUriage) html += detailItem('信販など手数料', shinpanVal ? fmtYen(shinpanVal) : '-');
+  if(showZaiko) html += detailItem('材料費（卸値）', fmtYen(dZairyo));
+  if(showZaiko) html += detailItem('交通費', dKotsu ? fmtYen(dKotsu) : '-');
+  if(showZaiko) html += detailItem('工事費（卸値）', fmtYen(dKoji));
   if(showShinpan) html += detailItem('計算対象金額', keisanVal > 0 ? fmtYen(keisanVal) : '-');
-  html += detailItem('材工（税込）', zaikoVal ? fmtYen(zaikoVal) : '-');
+  if(showZaiko) html += detailItem('材工（税込）', zaikoVal ? fmtYen(zaikoVal) : '-');
   html += detailItem('手数料（自動計算）', '<span style="color:var(--accent);font-weight:700;">' + fmtYen(feeVal) + '</span>');
-  html += detailItem('粗利金額', arariVal > 0 ? fmtYen(arariVal) : '-');
+  if(showArari) html += detailItem('粗利金額', arariVal > 0 ? fmtYen(arariVal) : '-');
   if(showShinpan) html += detailItem('信販会社', a.shinpanCo || '-');
   html += detailItem('入金日', fmtDate(a.nyukinDate));
   html += '</div></div>';
@@ -1202,17 +1205,20 @@ function renderMeisai() {
 
   // 明細テーブル
   var meisaiDc = getDairiConfig();
-  var showKeisan = meisaiDc.feeType === 'keisan' || !meisaiDc.feeType;
+  var showKeisan  = meisaiDc.feeType === 'keisan' || !meisaiDc.feeType;
+  var isUrageMei  = meisaiDc.feeType === 'uriage';
+  var showZaikoMei = !isUrageMei;
   html += '<div style="overflow-x:auto;">';
   html += '<table class="meisai-table">';
   html += '<thead><tr>';
   html += '<th>受注番号</th><th>受注日</th><th>ステータス</th><th>提案内容</th><th>社名</th><th>住所</th>';
   html += '<th>工事日③</th><th>契約種別</th><th>物件価格(税込)</th>';
-  html += '<th>材工</th><th>リプその他</th><th>交通費</th>'+(showKeisan?'<th>計算対象</th>':'')+'<th>手数料</th><th>歩合確定日</th>';
+  html += (showZaikoMei ? '<th>材工</th><th>リプその他</th><th>交通費</th>' : '')+(showKeisan?'<th>計算対象</th>':'')+'<th>手数料</th><th>歩合確定日</th>';
   html += '</tr></thead><tbody>';
 
   if (monthAnken.length === 0) {
-    html += '<tr><td colspan="'+(showKeisan?15:14)+'" style="text-align:center;padding:24px;color:var(--text3);">該当月の歩合確定データはありません</td></tr>';
+    var colCount = 9 + (showZaikoMei ? 3 : 0) + (showKeisan ? 1 : 0) + 2;
+    html += '<tr><td colspan="'+colCount+'" style="text-align:center;padding:24px;color:var(--text3);">該当月の歩合確定データはありません</td></tr>';
   } else {
     monthAnken.forEach(function(a) {
       var fee = calcAgentFee(a);
@@ -1232,9 +1238,11 @@ function renderMeisai() {
       html += '<td>'+fmtDate(a.shunkoDate)+'</td>';
       html += '<td>'+(a.keiyakuType||'-')+'</td>';
       html += '<td class="td-amount">'+fmtYen(a.price)+'</td>';
-      html += '<td class="td-amount">'+fmtYen(zaikoVal||'')+'</td>';
-      html += '<td class="td-amount">'+fmtYen(a.ripuSonota)+'</td>';
-      html += '<td class="td-amount">'+fmtYen(a.ripuKotsu)+'</td>';
+      if(showZaikoMei) {
+        html += '<td class="td-amount">'+fmtYen(zaikoVal||'')+'</td>';
+        html += '<td class="td-amount">'+fmtYen(a.ripuSonota)+'</td>';
+        html += '<td class="td-amount">'+fmtYen(a.ripuKotsu)+'</td>';
+      }
       if(showKeisan) html += '<td class="td-amount">'+fmtYen(keisanCalc)+'</td>';
       html += '<td class="td-amount" style="color:var(--accent);font-weight:700;">'+fmtYen(fee)+'</td>';
       html += '<td>'+fmtDate(a.buai)+'</td>';
@@ -1255,11 +1263,16 @@ function renderMeisai() {
       return s+(p>0?Math.round(p-z-sh-kt):0);
     },0);
     html += '<tr class="total-row">';
-    html += '<td colspan="7" style="text-align:right;padding-right:20px;">合計</td>';
-    html += '<td>¥'+totalPrice.toLocaleString()+'</td>';
-    html += '<td>¥'+totalZaiko.toLocaleString()+'</td>';
-    html += '<td>¥'+totalSonota.toLocaleString()+'</td>';
-    html += '<td>¥'+totalKotsu.toLocaleString()+'</td>';
+    html += '<td colspan="'+(showZaikoMei?7:9)+'" style="text-align:right;padding-right:20px;">合計</td>';
+    if(!showZaikoMei) {
+      // uriage: 物件価格合計のみ
+      html += '<td>¥'+totalPrice.toLocaleString()+'</td>';
+    } else {
+      html += '<td>¥'+totalPrice.toLocaleString()+'</td>';
+      html += '<td>¥'+totalZaiko.toLocaleString()+'</td>';
+      html += '<td>¥'+totalSonota.toLocaleString()+'</td>';
+      html += '<td>¥'+totalKotsu.toLocaleString()+'</td>';
+    }
     if(showKeisan) html += '<td>¥'+totalKeisanCalc.toLocaleString()+'</td>';
     html += '<td>¥'+totalFee.toLocaleString()+'</td>';
     html += '<td></td>';
