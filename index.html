@@ -1676,7 +1676,7 @@ const FORM_SECTIONS = [
       { id:'f-ripu-koji',  label:'工事③',   type:'number', key:'ripuKoji',   placeholder:'0' },
       { id:'f-ripu-sonota',label:'その他②', type:'number', key:'ripuSonota', placeholder:'0' },
       { id:'f-ripu-kotsu', label:'交通費②', type:'number-calc', key:'ripuKotsu', placeholder:'0', calcType:'ripuKotsu' },
-      { id:'f-ripu-arari', label:'支給金額', type:'number', key:'ripuArari', placeholder:'0' },
+      { id:'f-ripu-arari', label:'支給金額', type:'number-calc', key:'ripuArari', placeholder:'0', calcType:'ripuArari' },
     ]
   },
   {
@@ -2286,8 +2286,8 @@ function renderDetailView(id) {
   const keisanDisp = keisanSaved ? `¥${keisanSaved.toLocaleString()}`
     : (priceNum > 0 ? `¥${(priceNum - zaikoNum2 - shinpanSaved - chukaiVal).toLocaleString()}` : '-');
 
-  // 粗利金額 = 物件価格 - 材工 - 信販
-  const arariVal = priceNum - zaikoNum2 - shinpanSaved;
+  // 粗利金額 = 物件価格 - 材工
+  const arariVal = priceNum - zaikoNum2;
   const arariDisp = arariVal > 0 ? `¥${arariVal.toLocaleString()}` : '-';
 
   html += buildDetailAccSection('💰 費用情報', false, [
@@ -2315,10 +2315,12 @@ function renderDetailView(id) {
   })();
   const ripuKotsuDisp = ripuKotsuVal ? `¥${ripuKotsuVal.toLocaleString()}` : '-';
 
-  // 支給金額 = 仲介手数料 − 交通費② − その他②（常時自動計算）
+  // 支給金額 = 手入力値を優先、なければ仲介手数料 − 交通費② − その他②
   const ripuSonotaVal = parseFloat(a.ripuSonota) || 0;
-  const ripuArariVal = chukaiVal - ripuKotsuVal - ripuSonotaVal;
-  const ripuArariDisp = ripuArariVal > 0 ? `¥${ripuArariVal.toLocaleString()}` : '-';
+  const ripuArariSaved = parseFloat(a.ripuArari) || 0;
+  const ripuArariAuto  = chukaiVal - ripuKotsuVal - ripuSonotaVal;
+  const ripuArariVal   = ripuArariSaved || Math.max(0, ripuArariAuto);
+  const ripuArariDisp  = ripuArariVal > 0 ? `¥${ripuArariVal.toLocaleString()}` : '-';
 
   html += buildDetailAccSection('🏪 代理店情報', false, [
     ['アップセル', a.ripuUmu||'-'], ['材料③', v(a.ripuZairyo,true)],
@@ -2448,6 +2450,7 @@ function buildDetailEditForm(a) {
           else if(f.calcType==='shinpan')   { btnLabel='🔢 自動計算'; onclickFn=`calcShinpan('de-${f.id}')`; }
           else if(f.calcType==='keisan')    { btnLabel='🔢 自動計算'; onclickFn=`calcKeisan('de-${f.id}')`; }
           else if(f.calcType==='ripuKotsu') { btnLabel='🔢 自動計算'; onclickFn=`calcRipuKotsu('de-${f.id}')`; }
+          else if(f.calcType==='ripuArari') { btnLabel='🔢 自動計算'; onclickFn=`calcRipuArari('de-${f.id}')`; }
           body += `<div class="form-group" ${fullCls}><label>${f.label}</label>
             <div class="calc-wrap"><input type="number" id="de-${f.id}" placeholder="0" value="${val}">
             <button type="button" class="btn-calc" onclick="${onclickFn}">${btnLabel}</button></div>
@@ -2705,6 +2708,7 @@ function buildForm(type, data) {
         else if(f.calcType==='shinpan')   { btnLabel='🔢 自動計算'; onclickFn=`calcShinpan('${f.id}')`; }
         else if(f.calcType==='keisan')    { btnLabel='🔢 自動計算'; onclickFn=`calcKeisan('${f.id}')`; }
         else if(f.calcType==='ripuKotsu') { btnLabel='🔢 自動計算'; onclickFn=`calcRipuKotsu('${f.id}')`; }
+        else if(f.calcType==='ripuArari') { btnLabel='🔢 自動計算'; onclickFn=`calcRipuArari('${f.id}')`; }
         html += `<div class="form-group" ${fullCls}><label>${f.label}</label>
           <div class="calc-wrap"><input type="number" id="${f.id}" placeholder="0" value="${val}">
           <button type="button" class="btn-calc" onclick="${onclickFn}">${btnLabel}</button></div>
@@ -4493,7 +4497,7 @@ function removeMember(i) {
 
 // ===== 数字進捗 =====
 function getKeisanVal(a) {
-  // 計算対象金額：物件価格－材工－信販－仲介手数料
+  // 計算対象金額：物件価格－材工－信販コスト－代理店手数料（代理店ありの場合）
   const zairyoC = (() => {
     const items = (a.teianContent||'').split('・').filter(s=>s&&!s.startsWith('その他'));
     const count = Math.max(1, parseInt(a.teianCount)||1);
@@ -4508,12 +4512,36 @@ function getKeisanVal(a) {
   const kojiN   = kojiC   || parseFloat(a.kojiHi)||0;
   const zaikoN  = parseFloat(a.zaiko) || (zairyoN+kojiN);
   const isLL = ['リース','ローン'].includes(a.keiyakuType||'');
-  const shinpan = isLL ? 550 : 0;
-  const hasDairi = !!(a.dairiNo||'').trim();
+  const shinpanFixed = isLL ? 550 : 0;
+  // 外部信販手数料（手入力値から固定550を引いた残り、または0）
+  const shinpanSaved = parseFloat(a.shinpan) || 0;
+  const shinpanExtra = Math.max(0, shinpanSaved - shinpanFixed);
   const price = parseFloat(a.price)||0;
   if (price <= 0) return 0;
-  const chukai = hasDairi ? Math.round((price-zaikoN-550)*0.3) : parseFloat(a.chukai)||0;
-  return price - zaikoN - shinpan - chukai;
+
+  // 代理店手数料
+  const hasDairi = !!(a.dairiNo||'').trim();
+  let dairiTesuryou = 0;
+  if (hasDairi) {
+    const dairiMaster = (settingsData && settingsData.dairiList || []).find(function(d){ return d.no === (a.dairiNo||'').trim(); });
+    const feeType = (dairiMaster && dairiMaster.feeType) || 'arari';
+    const feeRate = ((dairiMaster && dairiMaster.feeRate) || 0) / 100;
+    if (feeRate > 0) {
+      const arari = price - zaikoN; // 粗利 = 物件価格 - 材工
+      if (feeType === 'arari') {
+        dairiTesuryou = Math.round(arari * feeRate);
+      } else if (feeType === 'uriage') {
+        dairiTesuryou = Math.round(price * feeRate);
+      } else { // keisan
+        dairiTesuryou = Math.round((price - zaikoN - shinpanFixed - shinpanExtra) * feeRate);
+      }
+    } else {
+      // 手数料率未設定の場合は保存済み仲介手数料を使用
+      dairiTesuryou = parseFloat(a.chukai) || 0;
+    }
+  }
+
+  return price - zaikoN - shinpanFixed - shinpanExtra - dairiTesuryou;
 }
 
 var sujiPeriod = '月次';
@@ -6099,9 +6127,29 @@ function autoCalcCosts(a) {
   const autoShinpan = shinpanA + (shinpanB > 0 ? shinpanB : 0);
   if(!parseFloat(a.shinpan) && autoShinpan > 0) a.shinpan = String(autoShinpan);
 
-  // 計算対象金額
-  const shinpan = parseFloat(a.shinpan)||0;
-  const keisan = price - zaiko - shinpan;
+  // 計算対象金額（getKeisanValと同じロジック）
+  const shinpanSavedAC = parseFloat(a.shinpan)||0;
+  const shinpanFixedAC = isLeaseLoan ? 550 : 0;
+  const shinpanExtraAC = Math.max(0, shinpanSavedAC - shinpanFixedAC);
+  let dairiTesuryouAC = 0;
+  if (hasDairiNo) {
+    const dairiMasterAC = (settingsData && settingsData.dairiList || []).find(function(d){ return d.no === (a.dairiNo||'').trim(); });
+    const feeTypeAC = (dairiMasterAC && dairiMasterAC.feeType) || 'arari';
+    const feeRateAC = ((dairiMasterAC && dairiMasterAC.feeRate) || 0) / 100;
+    if (feeRateAC > 0) {
+      const arariAC = price - zaiko;
+      if (feeTypeAC === 'arari') {
+        dairiTesuryouAC = Math.round(arariAC * feeRateAC);
+      } else if (feeTypeAC === 'uriage') {
+        dairiTesuryouAC = Math.round(price * feeRateAC);
+      } else {
+        dairiTesuryouAC = Math.round((price - zaiko - shinpanFixedAC - shinpanExtraAC) * feeRateAC);
+      }
+    } else {
+      dairiTesuryouAC = parseFloat(a.chukai) || 0;
+    }
+  }
+  const keisan = price - zaiko - shinpanFixedAC - shinpanExtraAC - dairiTesuryouAC;
   if(!parseFloat(a.keisan) && keisan > 0) a.keisan = String(keisan);
 
   // ★ 代理店向け卸値の自動コピー（手入力がなければ工事費・材料費をコピー）
@@ -6129,6 +6177,24 @@ function calcRipuKotsu(targetId) {
   if(preview) preview.textContent = val
     ? `代理店番号あり ＋ ${keiyakuType} → ¥10,000`
     : '条件不一致（代理店番号あり かつ リース/ローンの場合のみ）';
+}
+
+function calcRipuArari(targetId) {
+  const prefix = targetId.startsWith('de-') ? 'de-' : '';
+  const chukai  = getFieldVal(prefix, 'f-chukai');
+  const kotsu   = getFieldVal(prefix, 'f-ripu-kotsu');
+  const sonota  = getFieldVal(prefix, 'f-ripu-sonota');
+  const total   = chukai - kotsu - sonota;
+  const result  = Math.max(0, total);
+  document.getElementById(targetId).value = result;
+  const preview = document.getElementById(targetId + '-preview');
+  if (preview) {
+    if (chukai > 0) {
+      preview.textContent = `¥${chukai.toLocaleString()} − ¥${kotsu.toLocaleString()} − ¥${sonota.toLocaleString()} = ¥${result.toLocaleString()}`;
+    } else {
+      preview.textContent = '仲介手数料を先に入力してください';
+    }
+  }
 }
 
 function calcZaiko(targetId) {
