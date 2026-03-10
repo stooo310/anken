@@ -1721,11 +1721,11 @@ const FORM_FIELDS = {
 
 // ===== 一覧列定義 =====
 const TABLE_COLS = {
-  工事:    ['受注日','顧客名','ステータス','契約種別','担当者','完工日','月額','提案内容'],
-  保守:    ['受注日','顧客名','ステータス','契約種別','担当者','完工日','月額','提案内容'],
-  そーだん:['受注日','顧客名','ステータス','契約種別','担当者','完工日','月額','提案内容'],
-  Stooory: ['受注日','顧客名','ステータス','担当者','開始日','商品金額','商品内容'],
-  all:     ['種別','受注日','顧客名','ステータス','契約種別','担当者','完工日/開始日','提案内容/商品内容'],
+  工事:    ['受注日','顧客名','ステータス','契約種別','担当者','代理店番号','完工日','月額','提案内容'],
+  保守:    ['受注日','顧客名','ステータス','契約種別','担当者','代理店番号','完工日','月額','提案内容'],
+  そーだん:['受注日','顧客名','ステータス','契約種別','担当者','代理店番号','完工日','月額','提案内容'],
+  Stooory: ['受注日','顧客名','ステータス','担当者','代理店番号','開始日','商品金額','商品内容'],
+  all:     ['種別','受注日','顧客名','ステータス','契約種別','担当者','代理店番号','完工日/開始日','提案内容/商品内容'],
 };
 
 // ===== State =====
@@ -1997,10 +1997,20 @@ function renderAnkenTable() {
       const ka = a.keiyakuType||'', kb = b.keiyakuType||'';
       return currentSortDir === 'asc' ? ka.localeCompare(kb) : kb.localeCompare(ka);
     });
+  } else if(currentSortCol === '担当者') {
+    sorted.sort((a, b) => {
+      const ta = a.tanto||'', tb = b.tanto||'';
+      return currentSortDir === 'asc' ? ta.localeCompare(tb, 'ja') : tb.localeCompare(ta, 'ja');
+    });
+  } else if(currentSortCol === '代理店番号') {
+    sorted.sort((a, b) => {
+      const da = a.dairiNo||'', db = b.dairiNo||'';
+      return currentSortDir === 'asc' ? da.localeCompare(db) : db.localeCompare(da);
+    });
   }
 
   // ヘッダー（クリッカブル）
-  const sortableCols = ['ステータス', '受注日', '契約種別'];
+  const sortableCols = ['ステータス', '受注日', '契約種別', '担当者', '代理店番号'];
   const cols = isAll ? TABLE_COLS.all : TABLE_COLS[currentTypeFilter] || TABLE_COLS.all;
   thead.innerHTML = cols.map(c => {
     if(sortableCols.includes(c)) {
@@ -2030,6 +2040,7 @@ function renderAnkenTable() {
           <td><span class="badge ${statusColor(a.status)}">${a.status}</span></td>
           <td class="td-sub">${a.keiyakuType||'-'}</td>
           <td class="td-sub">${a.tanto||'-'}</td>
+          <td class="td-sub">${a.dairiNo||'-'}</td>
           <td class="td-date">${fmtDate(endDate)}</td>
           <td class="td-sub">${contentVal}</td>`;
       } else if(a.type==='工事') {
@@ -2039,6 +2050,7 @@ function renderAnkenTable() {
           <td><span class="badge ${statusColor(a.status)}">${a.status}</span></td>
           <td class="td-sub">${a.keiyakuType||'-'}</td>
           <td class="td-sub">${a.tanto||'-'}</td>
+          <td class="td-sub">${a.dairiNo||'-'}</td>
           <td class="td-date">${fmtDate(a.kojiEnd)}</td>
           <td class="td-amount">${a.monthly ? '¥'+fmt(a.monthly) : '-'}</td>
           <td class="td-sub">${a.teianContent||'-'}</td>`;
@@ -2049,6 +2061,7 @@ function renderAnkenTable() {
           <td><span class="badge ${statusColor(a.status)}">${a.status}</span></td>
           <td class="td-sub">${a.keiyakuType||'-'}</td>
           <td class="td-sub">${a.tanto||'-'}</td>
+          <td class="td-sub">${a.dairiNo||'-'}</td>
           <td class="td-date">${fmtDate(a.kojiEnd)}</td>
           <td class="td-amount">${a.monthly ? '¥'+fmt(a.monthly) : '-'}</td>
           <td class="td-sub">${a.teianContent||'-'}</td>`;
@@ -2059,6 +2072,7 @@ function renderAnkenTable() {
           <td><span class="badge ${statusColor(a.status)}">${a.status}</span></td>
           <td class="td-sub">${a.keiyakuType||'-'}</td>
           <td class="td-sub">${a.tanto||'-'}</td>
+          <td class="td-sub">${a.dairiNo||'-'}</td>
           <td class="td-date">${fmtDate(a.kojiEnd)}</td>
           <td class="td-amount">${a.monthly ? '¥'+fmt(a.monthly) : '-'}</td>
           <td class="td-sub">${a.teianContent||'-'}</td>`;
@@ -2068,6 +2082,7 @@ function renderAnkenTable() {
           <td class="td-main">${a.kokyaku||'-'}${draftBadge}</td>
           <td><span class="badge ${statusColor(a.status)}">${a.status}</span></td>
           <td class="td-sub">${a.tanto||'-'}</td>
+          <td class="td-sub">${a.dairiNo||'-'}</td>
           <td class="td-date">${fmtDate(a.kojiStart)}</td>
           <td class="td-amount">${a.price ? '¥'+fmt(a.price) : '-'}</td>
           <td class="td-sub">${a.content||'-'}</td>`;
