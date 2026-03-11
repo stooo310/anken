@@ -2355,7 +2355,13 @@ function buildDetailAccSection(label, open, rows) {
   const isOpen = open;
   let rowsHtml = '<div class="dp-grid">';
   rows.forEach(([key, val, full]) => {
-    rowsHtml += `<div class="dp-item${full?' full':''}"><div class="dp-label">${key}</div><div class="dp-value">${val}</div></div>`;
+    // HTMLタグを含まない純テキスト値のみ改行変換（備考・メモ等）
+    var dispVal = val;
+    var isPlainText = full && typeof val === 'string' && val !== '-' && !/<[a-z]/i.test(val);
+    if (isPlainText) {
+      dispVal = val.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+    }
+    rowsHtml += `<div class="dp-item${full?' full':''}"><div class="dp-label">${key}</div><div class="dp-value" style="${isPlainText?'white-space:pre-wrap;':''}">${dispVal}</div></div>`;
   });
   rowsHtml += '</div>';
   return `<div class="dp-acc">
@@ -6602,7 +6608,7 @@ function openShijiModal() {
   </div>
   <div class="form-section">
     <div class="form-section-title">📝 備考</div>
-    <div class="form-group"><textarea id="sh-biko" rows="4">${a.memo||''}</textarea></div>
+    <div class="form-group"><textarea id="sh-biko" rows="4"></textarea></div>
   </div>`;
   document.getElementById('shiji-body').innerHTML = html;
   // 初期3行追加
