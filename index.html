@@ -2355,11 +2355,13 @@ function buildDetailAccSection(label, open, rows) {
   const isOpen = open;
   let rowsHtml = '<div class="dp-grid">';
   rows.forEach(([key, val, full]) => {
-    // 改行を<br>に変換（備考・メモなどtextareaフィールド用）
-    const dispVal = (typeof val === 'string' && val !== '-')
-      ? val.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')
-      : val;
-    rowsHtml += `<div class="dp-item${full?' full':''}"><div class="dp-label">${key}</div><div class="dp-value" style="${full?'white-space:pre-wrap;':''}">${dispVal}</div></div>`;
+    // HTMLタグを含まない純テキスト値のみ改行変換（備考・メモ等）
+    var dispVal = val;
+    var isPlainText = full && typeof val === 'string' && val !== '-' && !/<[a-z]/i.test(val);
+    if (isPlainText) {
+      dispVal = val.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+    }
+    rowsHtml += `<div class="dp-item${full?' full':''}"><div class="dp-label">${key}</div><div class="dp-value" style="${isPlainText?'white-space:pre-wrap;':''}">${dispVal}</div></div>`;
   });
   rowsHtml += '</div>';
   return `<div class="dp-acc">
@@ -2368,6 +2370,7 @@ function buildDetailAccSection(label, open, rows) {
     </div>
     <div class="dp-acc-body${isOpen?' open':''}">${rowsHtml}</div>
   </div>`;
+}
 }
 
 function buildDetailActions(id) {
