@@ -609,6 +609,20 @@ async function loadData() {
       });
     });
 
+    // 【修正】paymentListの支払日（paymentDate）もJST YYYY-MM-DD形式に正規化
+    // GASがDate型セルをUTC ISO文字列で返すため1日ずれる問題を修正
+    paymentList.forEach(function(p) {
+      if (!p.paymentDate) return;
+      var s = String(p.paymentDate);
+      if (s.includes('T')) {
+        var d = new Date(s);
+        var jst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+        p.paymentDate = jst.getUTCFullYear() + '-'
+          + String(jst.getUTCMonth() + 1).padStart(2, '0') + '-'
+          + String(jst.getUTCDate()).padStart(2, '0');
+      }
+    });
+
     console.log('masterList:', masterList.length, '件');
     console.log('monthlyList:', monthlyList.length, '件');
     if (monthlyList.length > 0) console.log('monthlyList[0].importMonth:', monthlyList[0].importMonth);
@@ -673,7 +687,14 @@ function showPage(pageId) {
 // Helpers
 // ============================================================
 function fmtYen(n) { var v = Math.round(Number(n)||0); return v ? '¥'+v.toLocaleString() : '-'; }
-function fmtDate(d) { return d ? String(d).substring(0,10) : '-'; }
+function fmtDate(d) {
+  if (!d) return '-';
+  var s = String(d);
+  // YYYY-MM-DD形式を正規表現で抽出（T以降のUTC部分を無視）
+  var m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (m) return m[1];
+  return s.substring(0, 10) || '-';
+}
 function isDairiUser() { return currentUser && (currentUser.role === 'dairi' || currentUser.role === 'powerDairi'); }
 function isMemberUser() { return currentUser && currentUser.role === 'member'; }
 function isManagerUser() { return currentUser && currentUser.role === 'manager'; }
