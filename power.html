@@ -229,6 +229,7 @@ body { font-family: 'Segoe UI','Hiragino Sans',sans-serif; background:var(--bg2)
     </div>
   </div>
   <div style="padding:20px 28px;">
+    <div id="dairi-balance-info" style="display:none;"></div>
     <div id="monthly-summary"></div>
     <div class="filter-bar">
       <input type="text" id="monthly-search" placeholder="🔍 顧客名で検索..." oninput="renderMonthlyTable()" style="flex:1;min-width:200px;">
@@ -414,6 +415,63 @@ body { font-family: 'Segoe UI','Hiragino Sans',sans-serif; background:var(--bg2)
 
 <div class="toast" id="toast"></div>
 
+<!-- 初期残高設定モーダル -->
+<div id="initial-balance-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:var(--bg);border-radius:14px;padding:28px;width:360px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <div style="font-size:16px;font-weight:700;">🔢 初期残高の設定</div>
+      <button onclick="closeInitialBalanceModal()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text3);">✕</button>
+    </div>
+    <div style="background:var(--bg2);border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px;">
+      <div id="ibm-dairi-label" style="font-weight:700;margin-bottom:4px;"></div>
+      <div style="font-size:11px;color:var(--text3);">システム導入前の累積未払い残高を入力してください。この金額が累積計算のスタート値になります。</div>
+    </div>
+    <input type="hidden" id="ibm-dairiNo">
+    <input type="hidden" id="ibm-dairiName">
+    <input type="hidden" id="ibm-existingId">
+    <div style="margin-bottom:20px;">
+      <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px;">初期残高（円） <span style="color:var(--text3);font-size:11px;">※0円でリセット可能</span></label>
+      <input type="number" id="ibm-amount" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:15px;font-weight:700;background:var(--bg);color:var(--text);" placeholder="例: 6609">
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button onclick="closeInitialBalanceModal()" style="padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:none;cursor:pointer;font-size:13px;color:var(--text);">キャンセル</button>
+      <button onclick="saveInitialBalance()" class="btn btn-primary">💾 保存</button>
+    </div>
+  </div>
+</div>
+<div id="payment-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:var(--bg);border-radius:14px;padding:28px;width:380px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <div style="font-size:16px;font-weight:700;">💰 支払い登録</div>
+      <button onclick="closePaymentModal()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text3);">✕</button>
+    </div>
+    <div style="background:var(--bg2);border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px;">
+      <div style="color:var(--text3);font-size:11px;margin-bottom:4px;">対象代理店</div>
+      <div id="pm-dairi-label" style="font-weight:700;"></div>
+      <div style="margin-top:6px;color:var(--text3);font-size:11px;">累積未払い残高</div>
+      <div id="pm-unpaid" style="font-size:18px;font-weight:800;color:#dc2626;"></div>
+    </div>
+    <input type="hidden" id="pm-dairiNo">
+    <input type="hidden" id="pm-dairiName">
+    <div style="margin-bottom:12px;">
+      <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px;">支払日 <span style="color:#ef4444;">*</span></label>
+      <input type="date" id="pm-date" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--text);">
+    </div>
+    <div style="margin-bottom:12px;">
+      <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px;">支払金額 <span style="color:#ef4444;">*</span></label>
+      <input type="number" id="pm-amount" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--text);" placeholder="例: 15000">
+    </div>
+    <div style="margin-bottom:20px;">
+      <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px;">メモ</label>
+      <input type="text" id="pm-memo" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--text);" placeholder="振込番号など">
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button onclick="closePaymentModal()" style="padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:none;cursor:pointer;font-size:13px;color:var(--text);">キャンセル</button>
+      <button onclick="savePayment()" class="btn btn-primary">💾 登録</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ============================================================
 // Config
@@ -423,6 +481,7 @@ var authToken = null;
 var currentUser = null;
 var masterList = [];
 var monthlyList = [];
+var paymentList = [];  // 支払い履歴
 var powerSettings = {};
 var _importCo = 'SMES';
 var _importData = [];
@@ -505,12 +564,14 @@ function doLogout() {
 async function loadData() {
   showToast('⏳ データ読み込み中...');
   try {
-    var [mRes, moRes] = await Promise.all([
+    var [mRes, moRes, phRes] = await Promise.all([
       apiCall('getPowerMaster'),
-      apiCall('getPowerMonthly')
+      apiCall('getPowerMonthly'),
+      apiCall('getPaymentHistory')
     ]);
     if (mRes.ok) masterList = mRes.data || [];
     if (moRes.ok) monthlyList = moRes.data || [];
+    if (phRes.ok) paymentList = phRes.data || [];
 
     // memberは自分の案件のみに絞り込み（stoooTantoまたはdairiTantoで判定）
     if (currentUser && currentUser.role === 'member') {
@@ -938,6 +999,70 @@ function renderMonthlyTable() {
   // 代理店ユーザーの場合は明細書ボタン表示
   var meisaiBtn = document.getElementById('btn-meisai-pdf');
   if (meisaiBtn) meisaiBtn.style.display = (isDairiUser() && filtered.length > 0) ? '' : 'none';
+
+  // 代理店ユーザー向け：累積未払い残高・支払い履歴を表示
+  var dairiInfoEl = document.getElementById('dairi-balance-info');
+  if (dairiInfoEl) {
+    if (isDairiUser() && currentUser.dairiNo) {
+      var myDairiNo = currentUser.dairiNo;
+
+      // 累積未払い = 初期残高 + 全月合計 − 支払い済み合計
+      var initialRec = paymentList.find(function(p) {
+        return (p.dairiNo||'') === myDairiNo && p.type === 'initial';
+      });
+      var initialBalance = initialRec ? (Number(initialRec.amount)||0) : 0;
+
+      var allTotal = monthlyList
+        .filter(function(m) { return (m.dairiNo||'') === myDairiNo; })
+        .reduce(function(s,m) { return s + (Number(m.dairiShare)||0); }, 0);
+      var paidTotal = paymentList
+        .filter(function(p) { return (p.dairiNo||'') === myDairiNo && p.type !== 'initial'; })
+        .reduce(function(s,p) { return s + (Number(p.amount)||0); }, 0);
+      var unpaid = initialBalance + allTotal - paidTotal;
+      var overThreshold = unpaid >= 10000;
+
+      // 支払い履歴（新しい順）
+      var myPayments = paymentList
+        .filter(function(p) { return (p.dairiNo||'') === myDairiNo && p.type !== 'initial'; })
+        .sort(function(a,b) { return b.paymentDate > a.paymentDate ? 1 : -1; });
+
+      var payHistHtml = myPayments.length > 0
+        ? '<table class="data-table" style="margin-top:8px;"><thead><tr><th>支払日</th><th style="text-align:right;">支払金額</th><th>メモ</th></tr></thead><tbody>'
+          + myPayments.map(function(p) {
+              return '<tr>'
+                + '<td class="td-date">'+(p.paymentDate||'-')+'</td>'
+                + '<td class="td-amount" style="font-weight:700;color:var(--green);">'+fmtYen(p.amount)+'</td>'
+                + '<td style="font-size:12px;color:var(--text2);">'+(p.memo||'-')+'</td>'
+                + '</tr>';
+            }).join('')
+          + '</tbody></table>'
+        : '<div style="font-size:12px;color:var(--text3);margin-top:8px;">支払い履歴はありません</div>';
+
+      dairiInfoEl.innerHTML =
+        '<div class="dash-card" style="margin-bottom:20px;">'
+        + '<div class="dash-card-title">💴 累積・支払い状況</div>'
+        + '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;">'
+        + '<div style="flex:1;min-width:160px;background:var(--bg2);border-radius:10px;padding:12px 16px;border:1px solid var(--border);">'
+        + '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;">📊 累積未払い残高</div>'
+        + '<div style="font-size:22px;font-weight:800;color:'+(overThreshold?'#16a34a':'var(--text)')+';">' + fmtYen(unpaid) + '</div>'
+        + (overThreshold
+            ? '<div style="font-size:11px;color:#16a34a;margin-top:4px;font-weight:600;">✅ 1万円超 — 支払い予定</div>'
+            : '<div style="font-size:11px;color:var(--text3);margin-top:4px;">1万円未満（積立中）</div>')
+        + '</div>'
+        + '<div style="flex:1;min-width:160px;background:var(--bg2);border-radius:10px;padding:12px 16px;border:1px solid var(--border);">'
+        + '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;">💴 支払い済み合計</div>'
+        + '<div style="font-size:22px;font-weight:800;color:var(--green);">' + fmtYen(paidTotal) + '</div>'
+        + '<div style="font-size:11px;color:var(--text3);margin-top:4px;">全期間累計</div>'
+        + '</div>'
+        + '</div>'
+        + '<div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:1px;margin-bottom:4px;">💴 支払い履歴</div>'
+        + payHistHtml
+        + '</div>';
+      dairiInfoEl.style.display = '';
+    } else {
+      dairiInfoEl.style.display = 'none';
+    }
+  }
 }
 
 // ============================================================
@@ -1758,6 +1883,31 @@ function renderDairiPay() {
 
   wrap.innerHTML = summaryHtml + Object.keys(byDairi).map(function(dairiNo) {
     var d = byDairi[dairiNo];
+
+    // 初期残高（type='initial'のレコード）
+    var initialRec = paymentList.find(function(p) {
+      return (p.dairiNo||'') === dairiNo && p.type === 'initial';
+    });
+    var initialBalance = initialRec ? (Number(initialRec.amount)||0) : 0;
+
+    // 累積計算：初期残高 + 全月の dairiShare 合計
+    var allMonthTotal = monthlyList
+      .filter(function(m) { return (m.dairiNo||'') === dairiNo; })
+      .reduce(function(s,m) { return s + (Number(m.dairiShare)||0); }, 0);
+
+    // 支払い済み合計（initialレコードは除く）
+    var paidTotal = paymentList
+      .filter(function(p) { return (p.dairiNo||'') === dairiNo && p.type !== 'initial'; })
+      .reduce(function(s,p) { return s + (Number(p.amount)||0); }, 0);
+
+    var unpaid = initialBalance + allMonthTotal - paidTotal;
+    var overThreshold = unpaid >= 10000;
+
+    // 支払い履歴（initialレコードは除く）
+    var myPayments = paymentList
+      .filter(function(p) { return (p.dairiNo||'') === dairiNo && p.type !== 'initial'; })
+      .sort(function(a,b) { return b.paymentDate > a.paymentDate ? 1 : -1; });
+
     // 電力会社別の小計
     var byCo = {};
     d.items.forEach(function(m) {
@@ -1771,23 +1921,68 @@ function renderDairiPay() {
       return companyBadge(co) + ' ' + byCo[co].count + '件 / 支払 ' + fmtYen(byCo[co].dairiShare);
     }).join('　');
 
+    var isAdmin = isAdminUser() || isManagerUser();
+
     return '<div class="dash-card">'
+      // ヘッダー行
       + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">'
       + '<div class="dash-card-title" style="margin:0;">🏢 ' + dairiNo + '　' + d.name + '</div>'
-      + '<div style="font-size:18px;font-weight:800;color:var(--purple);">支払合計 ' + fmtYen(d.total) + '</div>'
+      + '<div style="font-size:18px;font-weight:800;color:var(--purple);">今月支払 ' + fmtYen(d.total) + '</div>'
       + '</div>'
       + '<div style="font-size:11px;color:var(--text3);margin-bottom:12px;">' + coSummary + '</div>'
+
+      // 累積・支払いバー
+      + '<div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">'
+      + '<div style="flex:1;min-width:180px;background:var(--bg2);border-radius:10px;padding:12px 16px;border:1px solid var(--border);">'
+      + '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;">📊 累積未払い残高</div>'
+      + '<div style="font-size:22px;font-weight:800;color:'+(overThreshold?'#dc2626':'var(--text)')+';">' + fmtYen(unpaid) + '</div>'
+      + (overThreshold ? '<div style="font-size:11px;color:#dc2626;margin-top:4px;font-weight:600;">⚠️ 1万円超 — 支払い対象</div>' : '<div style="font-size:11px;color:var(--text3);margin-top:4px;">1万円未満（積立中）</div>')
+      + '</div>'
+      + '<div style="flex:1;min-width:180px;background:var(--bg2);border-radius:10px;padding:12px 16px;border:1px solid var(--border);">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
+      + '<div style="font-size:11px;color:var(--text3);">🔢 初期残高</div>'
+      + (isAdmin ? '<button onclick="openInitialBalanceModal(\''+dairiNo+'\',\''+d.name+'\','+initialBalance+')" style="font-size:10px;padding:2px 7px;border:1px solid var(--border);border-radius:5px;background:none;cursor:pointer;color:var(--text2);">編集</button>' : '')
+      + '</div>'
+      + '<div style="font-size:20px;font-weight:800;color:var(--text);">' + fmtYen(initialBalance) + '</div>'
+      + '<div style="font-size:11px;color:var(--text3);margin-top:4px;">システム導入前の繰越分</div>'
+      + '</div>'
+      + '<div style="flex:1;min-width:180px;background:var(--bg2);border-radius:10px;padding:12px 16px;border:1px solid var(--border);">'
+      + '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;">💴 支払い済み合計</div>'
+      + '<div style="font-size:22px;font-weight:800;color:var(--green);">' + fmtYen(paidTotal) + '</div>'
+      + '<div style="font-size:11px;color:var(--text3);margin-top:4px;">全期間累計</div>'
+      + '</div>'
+      // 支払い登録ボタン（admin/managerのみ）
+      + (isAdmin ? '<div style="display:flex;flex-direction:column;gap:6px;justify-content:center;">'
+        + '<button class="btn btn-primary" onclick="openPaymentModal(\''+dairiNo+'\',\''+d.name+'\','+unpaid+')" style="white-space:nowrap;">💰 支払い登録</button>'
+        + '</div>' : '')
+      + '</div>'
+
+      // 支払い履歴テーブル
+      + (myPayments.length > 0
+        ? '<div style="margin-bottom:16px;">'
+          + '<div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:1px;margin-bottom:6px;">💴 支払い履歴</div>'
+          + '<table class="data-table"><thead><tr><th>支払日</th><th style="text-align:right;">支払金額</th><th>メモ</th>'+(isAdmin?'<th></th>':'')+'</tr></thead><tbody>'
+          + myPayments.map(function(p) {
+              return '<tr>'
+                + '<td class="td-date">' + (p.paymentDate||'-') + '</td>'
+                + '<td class="td-amount" style="font-weight:700;color:var(--green);">' + fmtYen(p.amount) + '</td>'
+                + '<td style="font-size:12px;color:var(--text2);">' + (p.memo||'-') + '</td>'
+                + (isAdmin ? '<td><button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 6px;color:#ef4444;" onclick="deletePayment('+p.id+')">削除</button></td>' : '')
+                + '</tr>';
+            }).join('')
+          + '</tbody></table></div>'
+        : '<div style="font-size:12px;color:var(--text3);margin-bottom:16px;">支払い履歴なし</div>')
+
+      // 月次明細テーブル
       + '<table class="data-table"><thead><tr>'
       + '<th>対象月</th><th>顧客名</th><th>電力会社</th><th style="text-align:right;">対象金額</th><th style="text-align:right;">電力会社→弊社%</th><th style="text-align:right;">弊社手数料</th><th style="text-align:right;">代理店手数料%</th><th style="text-align:right;">代理店手数料</th>'
       + '</tr></thead><tbody>'
       + d.items.map(function(m) {
-        // 案件マスタから手数料率を探す（代理店番号＋顧客名で検索）
         var masterMatch = masterList.find(function(ma) {
           return ma.customerName && m.customerName &&
             ma.customerName.replace(/[\s　]/g,'') === m.customerName.replace(/[\s　]/g,'') &&
             ma.dairiNo && ma.dairiNo === m.dairiNo;
         });
-        // 代理店番号一致がなければ顧客名のみで検索
         if (!masterMatch) {
           masterMatch = masterList.find(function(ma) {
             return ma.customerName && m.customerName &&
@@ -1796,7 +1991,6 @@ function renderDairiPay() {
         }
         var companyRate = masterMatch ? (masterMatch.companyFeeRate || '-') : '-';
         var dairiRate = masterMatch ? (masterMatch.dairiFeeRate || '-') : '-';
-
         return '<tr>'
           + '<td class="td-date">'+(m.dataMonth||'-')+'</td>'
           + '<td class="td-main">'+(m.customerName||'-')+'</td>'
@@ -1813,7 +2007,119 @@ function renderDairiPay() {
   }).join('');
 }
 
-function printDairiPay() { window.print(); }
+// 初期残高モーダル
+function openInitialBalanceModal(dairiNo, dairiName, currentAmount) {
+  document.getElementById('ibm-dairiNo').value = dairiNo;
+  document.getElementById('ibm-dairiName').value = dairiName;
+  document.getElementById('ibm-amount').value = currentAmount || 0;
+  document.getElementById('ibm-dairi-label').textContent = dairiNo + '　' + dairiName;
+  // 既存のinitialレコードのIDを保持
+  var existing = paymentList.find(function(p) {
+    return (p.dairiNo||'') === dairiNo && p.type === 'initial';
+  });
+  document.getElementById('ibm-existingId').value = existing ? existing.id : '';
+  document.getElementById('initial-balance-modal').style.display = 'flex';
+}
+
+function closeInitialBalanceModal() {
+  document.getElementById('initial-balance-modal').style.display = 'none';
+}
+
+async function saveInitialBalance() {
+  var dairiNo = document.getElementById('ibm-dairiNo').value;
+  var dairiName = document.getElementById('ibm-dairiName').value;
+  var amount = Number(document.getElementById('ibm-amount').value) || 0;
+  var existingId = document.getElementById('ibm-existingId').value;
+
+  var btn = document.querySelector('#initial-balance-modal .btn-primary');
+  btn.disabled = true; btn.textContent = '保存中...';
+
+  try {
+    // 既存があれば削除してから新規登録
+    if (existingId) {
+      await apiCall('deletePaymentHistory', { id: existingId });
+      paymentList = paymentList.filter(function(p) { return String(p.id) !== String(existingId); });
+    }
+    var res = await apiCall('savePaymentHistory', {
+      data: { dairiNo: dairiNo, dairiName: dairiName, amount: amount,
+              paymentDate: '', memo: 'システム導入前の初期残高', type: 'initial' }
+    });
+    if (res.ok) {
+      paymentList.push(res.data);
+      showToast('✅ 初期残高を設定しました');
+      closeInitialBalanceModal();
+      renderDairiPay();
+    } else {
+      showToast('❌ ' + (res.error || '保存エラー'));
+    }
+  } catch(e) {
+    showToast('❌ 通信エラー');
+  } finally {
+    btn.disabled = false; btn.textContent = '💾 保存';
+  }
+}
+
+// 支払い登録モーダルを開く
+function openPaymentModal(dairiNo, dairiName, unpaidAmount) {
+  var modal = document.getElementById('payment-modal');
+  document.getElementById('pm-dairiNo').value = dairiNo;
+  document.getElementById('pm-dairiName').value = dairiName;
+  document.getElementById('pm-amount').value = Math.floor(unpaidAmount);
+  document.getElementById('pm-date').value = new Date().toISOString().substring(0,10);
+  document.getElementById('pm-memo').value = '';
+  document.getElementById('pm-dairi-label').textContent = dairiNo + '　' + dairiName;
+  document.getElementById('pm-unpaid').textContent = fmtYen(unpaidAmount);
+  modal.style.display = 'flex';
+}
+
+function closePaymentModal() {
+  document.getElementById('payment-modal').style.display = 'none';
+}
+
+async function savePayment() {
+  var dairiNo = document.getElementById('pm-dairiNo').value;
+  var dairiName = document.getElementById('pm-dairiName').value;
+  var amount = Number(document.getElementById('pm-amount').value);
+  var paymentDate = document.getElementById('pm-date').value;
+  var memo = document.getElementById('pm-memo').value;
+
+  if (!amount || !paymentDate) { showToast('⚠️ 金額と支払日は必須です'); return; }
+
+  var btn = document.querySelector('#payment-modal .btn-primary');
+  btn.disabled = true; btn.textContent = '保存中...';
+
+  try {
+    var res = await apiCall('savePaymentHistory', { data: { dairiNo, dairiName, amount, paymentDate, memo } });
+    if (res.ok) {
+      paymentList.push(res.data);
+      showToast('✅ 支払いを登録しました');
+      closePaymentModal();
+      renderDairiPay();
+    } else {
+      showToast('❌ ' + (res.error || '保存エラー'));
+    }
+  } catch(e) {
+    showToast('❌ 通信エラー');
+  } finally {
+    btn.disabled = false; btn.textContent = '💾 登録';
+  }
+}
+
+async function deletePayment(id) {
+  if (!confirm('この支払い履歴を削除しますか？')) return;
+  try {
+    var res = await apiCall('deletePaymentHistory', { id: id });
+    if (res.ok) {
+      paymentList = paymentList.filter(function(p) { return p.id != id; });
+      showToast('✅ 削除しました');
+      renderDairiPay();
+    } else {
+      showToast('❌ ' + (res.error || '削除エラー'));
+    }
+  } catch(e) {
+    showToast('❌ 通信エラー');
+  }
+}
 
 // ============================================================
 // Master Import (案件マスタ取込)
