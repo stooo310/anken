@@ -3327,16 +3327,21 @@ function saveAnken() {
     autoCalcCosts(newItem);
     ankenList.unshift(newItem);
   }
-  saveAnkenData(); closeAnkenModal(); renderAnkenTable();
+  closeAnkenModal(); renderAnkenTable();
   // 新規/編集した案件をAPI個別保存
   if(editingAnkenId) {
+    // 編集時: saveAnkenSingle で1件保存（bulkSaveも念のため実行）
     var saved = ankenList.find(x=>x.id===editingAnkenId);
     if(saved) saveAnkenSingle(saved);
+    saveAnkenData();
   } else if(ankenList.length > 0) {
     var newA = ankenList[0];
+    // 新規時: saveAnkenSingleで1件追加のみ
+    // ※ saveAnkenData(bulkSave)は呼ばない
+    //   フォルダ作成完了前にbulkSaveが走るとフォルダURLが上書き消滅するため
     saveAnkenSingle(newA);
     // 新規案件の場合、Googleドライブに3フォルダ自動作成
-    if (!editingAnkenId && newA.kokyaku && authToken) {
+    if (newA.kokyaku && authToken) {
       var folderName = (newA.kokyaku || '案件') + '_' + (newA.juchuDate || '').replace(/-/g,'');
       apiCall('createFolder', { folderName: folderName, ankenId: newA.id }).then(function(r) {
         if (r.ok && r.folders) {
