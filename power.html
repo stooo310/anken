@@ -1068,7 +1068,7 @@ function renderMonthlyTable() {
         ? '<table class="data-table" style="margin-top:8px;"><thead><tr><th>支払日</th><th style="text-align:right;">支払金額</th><th>メモ</th></tr></thead><tbody>'
           + myPayments.map(function(p) {
               return '<tr>'
-                + '<td class="td-date">'+(p.paymentDate||'-')+'</td>'
+                + '<td class="td-date">'+fmtDate(p.paymentDate||'-')+'</td>'
                 + '<td class="td-amount" style="font-weight:700;color:var(--green);">'+fmtYen(p.amount)+'</td>'
                 + '<td style="font-size:12px;color:var(--text2);">'+(p.memo||'-')+'</td>'
                 + '</tr>';
@@ -2002,7 +2002,7 @@ function renderDairiPay() {
           + '<table class="data-table"><thead><tr><th>支払日</th><th style="text-align:right;">支払金額</th><th>メモ</th>'+(isAdmin?'<th></th>':'')+'</tr></thead><tbody>'
           + myPayments.map(function(p) {
               return '<tr>'
-                + '<td class="td-date">' + (p.paymentDate||'-') + '</td>'
+                + '<td class="td-date">' + fmtDate(p.paymentDate||'-') + '</td>'
                 + '<td class="td-amount" style="font-weight:700;color:var(--green);">' + fmtYen(p.amount) + '</td>'
                 + '<td style="font-size:12px;color:var(--text2);">' + (p.memo||'-') + '</td>'
                 + (isAdmin ? '<td><button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 6px;color:#ef4444;" onclick="deletePayment('+p.id+')">削除</button></td>' : '')
