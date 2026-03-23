@@ -3330,29 +3330,33 @@ function saveAnken() {
   closeAnkenModal(); renderAnkenTable();
   // 新規/編集した案件をAPI個別保存
   if(editingAnkenId) {
-    // 編集時: saveAnkenSingle で1件保存（bulkSaveも念のため実行）
+    // 編集時: saveAnkenSingleで1件保存 + bulkSaveも実行
     var saved = ankenList.find(x=>x.id===editingAnkenId);
     if(saved) saveAnkenSingle(saved);
     saveAnkenData();
   } else if(ankenList.length > 0) {
     var newA = ankenList[0];
-    // 新規時: saveAnkenSingleで1件追加のみ
+    // 新規時: saveAnken完了を待ってからcreateFolder呼ぶ
     // ※ saveAnkenData(bulkSave)は呼ばない
-    //   フォルダ作成完了前にbulkSaveが走るとフォルダURLが上書き消滅するため
-    saveAnkenSingle(newA);
-    // 新規案件の場合、Googleドライブに3フォルダ自動作成
+    //   bulkSaveがフォルダURL書き込み前に走るとURLが消えるため
     if (newA.kokyaku && authToken) {
       var folderName = (newA.kokyaku || '案件') + '_' + (newA.juchuDate || '').replace(/-/g,'');
-      apiCall('createFolder', { folderName: folderName, ankenId: newA.id }).then(function(r) {
-        if (r.ok && r.folders) {
-          if (r.folders.data) newA.data = r.folders.data;
-          if (r.folders.contractUrl) newA.contractUrl = r.folders.contractUrl;
-          if (r.folders.status3) newA.status3 = r.folders.status3;
-          saveAnkenSingle(newA);
-          renderDetailView(newA.id);
-          showToast('📁 Googleドライブに3つのフォルダを作成しました');
-        }
+      // saveAnkenの完了を待ってからcreateFolder実行
+      // （GASがfindRowByIdで新規行を確実に見つけられるようにするため）
+      apiCall('saveAnken', { data: newA }).then(function(saveRes) {
+        if (!saveRes.ok) { console.error('案件保存エラー:', saveRes.error); return Promise.reject('保存失敗'); }
+        return apiCall('createFolder', { folderName: folderName, ankenId: newA.id });
+      }).then(function(r) {
+        if (!r || !r.ok || !r.folders) return;
+        if (r.folders.data) newA.data = r.folders.data;
+        if (r.folders.contractUrl) newA.contractUrl = r.folders.contractUrl;
+        if (r.folders.status3) newA.status3 = r.folders.status3;
+        saveAnkenSingle(newA);
+        renderDetailView(newA.id);
+        showToast('📁 Googleドライブに3つのフォルダを作成しました');
       }).catch(function(e) { console.error('フォルダ作成エラー:', e); });
+    } else {
+      saveAnkenSingle(newA);
     }
   }
   if(added) showToast(`✅ 顧客「${added.name}」を自動登録しました（${added.custNo}）`);
