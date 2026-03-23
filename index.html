@@ -1862,13 +1862,15 @@ function fmtMonth(m) {
 
 function fmtBirthday(d) {
   if(!d) return '-';
-  // "Monday, March 01, 1976" 等のロケール形式をパース
-  var dt = new Date(d);
-  if(isNaN(dt.getTime())) {
-    var m = String(d).match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
-    if(!m) return String(d);
-    dt = new Date(Number(m[1]), Number(m[2])-1, Number(m[3]));
+  // タイムゾーンずれ防止: YYYY-MM-DD形式はローカル日付として解析
+  var dt;
+  var iso = String(d).match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+  if(iso) {
+    dt = new Date(Number(iso[1]), Number(iso[2])-1, Number(iso[3]));
+  } else {
+    dt = new Date(d);
   }
+  if(isNaN(dt.getTime())) return String(d);
   var y = dt.getFullYear(), mo = dt.getMonth()+1, da = dt.getDate();
   var disp = y + '年' + mo + '月' + da + '日';
   // 年齢計算
@@ -2107,13 +2109,20 @@ function renderStats() {
   const ACTIVE = ['受注','工事手配中','工事中','審査中','本審査依頼中','書類待ち','対応中','保守初回待ち','保守実施中','相談依頼','相談確認中','相談中','事業者選定中','見積り確認中','見積り承認待ち','契約送付済み','処置手配中','処置中','事前入金待ち','支払い待ち','ご挨拶','商談中','利用準備中'];
   document.getElementById('st-total').textContent = ankenList.length;
   document.getElementById('st-active').textContent = ankenList.filter(a=>ACTIVE.includes(a.status)).length;
+  // タイムゾーンずれ防止: YYYY-MM-DD文字列をローカル日付として解析するヘルパー
+  function parseLocalDate(s) {
+    if(!s) return null;
+    var iso = String(s).match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+    if(iso) return new Date(Number(iso[1]), Number(iso[2])-1, Number(iso[3]));
+    return new Date(s);
+  }
   document.getElementById('st-month').textContent = ankenList.filter(a=>{
     if(!a.kojiEnd) return false;
-    const d=new Date(a.kojiEnd); return d.getMonth()+1===m&&d.getFullYear()===y;
+    const d=parseLocalDate(a.kojiEnd); return d&&d.getMonth()+1===m&&d.getFullYear()===y;
   }).length;
   const monthAmt = ankenList.filter(a=>{
     if(!a.juchuDate) return false;
-    const d=new Date(a.juchuDate); return d.getMonth()+1===m&&d.getFullYear()===y;
+    const d=parseLocalDate(a.juchuDate); return d&&d.getMonth()+1===m&&d.getFullYear()===y;
   }).reduce((s,a)=>s+(Number(a.price)||0),0);
   document.getElementById('st-amount').textContent = Math.round(monthAmt/10000);
 }
@@ -3392,13 +3401,31 @@ function deleteAnken(id) {
 }
 function confirmDeleteYes() {
   if(_pendingDeleteId !== null) {
-    ankenList = ankenList.filter(x=>x.id!==_pendingDeleteId);
-    // APIから削除
-    if (authToken) {
-      apiCall('deleteAnken', { id: _pendingDeleteId }).catch(function(e){ console.error(e); });
-    }
-    saveAnkenData(); renderAnkenTable();
+    var deleteId = _pendingDeleteId;
     _pendingDeleteId = null;
+
+    // ★ bulkSaveAnkenの遅延タイマーを必ずキャンセル
+    // 新規作成→即削除した場合、saveAnkenData()のタイマーが残っていると
+    // 削除後に古いリストでシートが全件上書きされ別案件が消えるバグの原因になる
+    if (_saveAnkenTimer) {
+      clearTimeout(_saveAnkenTimer);
+      _saveAnkenTimer = null;
+    }
+
+    // フロントのリストから削除してテーブルを更新
+    ankenList = ankenList.filter(x => x.id !== deleteId);
+    renderAnkenTable();
+
+    // APIはdeleteAnken（1件削除）のみ呼ぶ
+    // bulkSaveAnkenは呼ばない（bulkSave+deleteAnkenの二重実行が消える原因）
+    if (authToken) {
+      apiCall('deleteAnken', { id: deleteId }).then(function(r) {
+        if (!r.ok) {
+          showToast('⚠️ サーバー削除エラー: ' + (r.error || '不明'));
+          console.error('deleteAnken error:', r.error);
+        }
+      }).catch(function(e) { console.error('deleteAnken通信エラー:', e); });
+    }
   }
   document.getElementById('confirm-dialog').style.display = 'none';
 }
@@ -5350,7 +5377,7 @@ function renderDashboard() {
 
   const now = new Date();
   const months = Array.from({length:6},(_,i)=>{const d=new Date(now.getFullYear(),now.getMonth()-5+i,1);return{y:d.getFullYear(),m:d.getMonth()+1};});
-  const amts = months.map(({y,m})=>ankenList.filter(a=>{if(!a.juchuDate)return false;const d=new Date(a.juchuDate);return d.getFullYear()===y&&d.getMonth()+1===m;}).reduce((s,a)=>s+(Number(a.price)||0),0)/10000);
+  const amts = months.map(({y,m})=>ankenList.filter(a=>{if(!a.juchuDate)return false;var iso2=String(a.juchuDate).match(/^(\d{4})[-\/](\d{1,2})/);if(!iso2)return false;return Number(iso2[1])===y&&Number(iso2[2])===m;}).reduce((s,a)=>s+(Number(a.price)||0),0)/10000);
   const maxAmt = Math.max(...amts, 1);
   document.getElementById('dash-month-chart').innerHTML = months.map(({m},i)=>`
     <div class="month-bar-wrap">
