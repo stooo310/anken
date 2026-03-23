@@ -472,6 +472,23 @@ async function initAgentApp() {
     var ankenRes = await apiCall('getDairiAnken');
     if (ankenRes.ok) {
       ankenList = ankenRes.data || [];
+      // 【修正】GASがDate型セルをUTC ISO文字列で返す場合に1日ずれる問題を防ぐ
+      // JSTオフセット(+9h)を加算してYYYY-MM-DD文字列に正規化する
+      var DATE_KEYS = ['juchuDate','kojiStart','kojiEnd','kojiKanryo','hatchuDate',
+                       'shunkoDate','nyukinDate','hoshuDate','birthday','buai','tsuki'];
+      ankenList.forEach(function(a) {
+        DATE_KEYS.forEach(function(k) {
+          if (!a[k]) return;
+          var s = String(a[k]);
+          if (s.includes('T')) {
+            var d = new Date(s);
+            var jst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+            a[k] = jst.getUTCFullYear() + '-'
+              + String(jst.getUTCMonth() + 1).padStart(2, '0') + '-'
+              + String(jst.getUTCDate()).padStart(2, '0');
+          }
+        });
+      });
     }
 
     var settingsRes = await apiCall('getSettings');
