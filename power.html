@@ -749,6 +749,19 @@ function renderDashboard() {
 // ============================================================
 // Master Table
 // ============================================================
+var _masterSortCol = 'dairiNo';
+var _masterSortDir = 'asc';
+
+function sortMasterTable(col) {
+  if (_masterSortCol === col) {
+    _masterSortDir = _masterSortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    _masterSortCol = col;
+    _masterSortDir = 'asc';
+  }
+  renderMasterTable();
+}
+
 function renderMasterTable() {
   var q = (document.getElementById('master-search').value||'').toLowerCase();
   var coF = document.getElementById('master-company-filter').value;
@@ -761,8 +774,33 @@ function renderMasterTable() {
     return matchQ && matchCo && matchSt;
   });
 
+  // ソート
+  filtered.sort(function(a, b) {
+    var va = '', vb = '';
+    if (_masterSortCol === 'dairiNo') {
+      va = a.dairiNo || ''; vb = b.dairiNo || '';
+    } else if (_masterSortCol === 'orderDate') {
+      va = a.orderDate || ''; vb = b.orderDate || '';
+    }
+    var r = va.localeCompare(vb);
+    return _masterSortDir === 'asc' ? r : -r;
+  });
+
   var _d = isDairiUser() || isMemberUser();
-  document.getElementById('master-thead').innerHTML = '<th>進捗</th><th>受注日</th><th>代理店</th><th>電力会社</th><th>顧客名</th><th>申込者名</th><th>供給地点番号</th><th>契約種別</th><th>お支払</th><th>代理店手数料</th>'+(_d?'':'<th>電力会社→弊社%</th>');
+  var arrow = function(col) {
+    if (_masterSortCol !== col) return ' <span style="color:var(--text3);font-size:10px;">⇅</span>';
+    return _masterSortDir === 'asc'
+      ? ' <span style="color:var(--accent);font-size:10px;">▲</span>'
+      : ' <span style="color:var(--accent);font-size:10px;">▼</span>';
+  };
+
+  document.getElementById('master-thead').innerHTML =
+    '<th>進捗</th>'
+    + '<th style="cursor:pointer;user-select:none;" onclick="sortMasterTable(\'orderDate\')">受注日'+arrow('orderDate')+'</th>'
+    + '<th style="cursor:pointer;user-select:none;" onclick="sortMasterTable(\'dairiNo\')">代理店'+arrow('dairiNo')+'</th>'
+    + '<th>電力会社</th><th>顧客名</th><th>申込者名</th><th>供給地点番号</th><th>契約種別</th><th>お支払</th><th>代理店手数料</th>'
+    + (_d?'':'<th>電力会社→弊社%</th>');
+
   document.getElementById('master-tbody').innerHTML = filtered.map(function(m) {
     return '<tr onclick="openMasterModal('+m.id+')">'
       + '<td>'+statusBadge(m.status)+'</td>'
