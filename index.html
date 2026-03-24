@@ -1191,7 +1191,7 @@ tbody tr:hover td { background: #f7f9ff; }
 // ============================================================
 // API設定
 // ============================================================
-var API_BASE = 'https://script.google.com/macros/s/AKfycbw3IZa4Y2J6mjJLDQ0GJOLi6o0F7Thj_siZf6o-ZQSr2nCIE9P8LaEo5WFlnztDfw6b/exec'; // ← デプロイしたGASのURLをここに貼り付け
+var API_BASE = 'https://script.google.com/macros/s/AKfycbxiTo2Z-RcD6RGVWfJXfElTvGqajgK8Hl54xBBQLEgbLIog-nrKWpF5ibF0KikkWu4U5g/exec'; // ← デプロイしたGASのURLをここに貼り付け
 var currentUser = null;
 var authToken = '';
 
@@ -3327,36 +3327,27 @@ function saveAnken() {
     autoCalcCosts(newItem);
     ankenList.unshift(newItem);
   }
-  closeAnkenModal(); renderAnkenTable();
+  saveAnkenData(); closeAnkenModal(); renderAnkenTable();
   // 新規/編集した案件をAPI個別保存
   if(editingAnkenId) {
-    // 編集時: saveAnkenSingleで1件保存 + bulkSaveも実行
     var saved = ankenList.find(x=>x.id===editingAnkenId);
     if(saved) saveAnkenSingle(saved);
-    saveAnkenData();
   } else if(ankenList.length > 0) {
     var newA = ankenList[0];
-    // 新規時: saveAnken完了を待ってからcreateFolder呼ぶ
-    // ※ saveAnkenData(bulkSave)は呼ばない
-    //   bulkSaveがフォルダURL書き込み前に走るとURLが消えるため
-    if (newA.kokyaku && authToken) {
+    saveAnkenSingle(newA);
+    // 新規案件の場合、Googleドライブに3フォルダ自動作成
+    if (!editingAnkenId && newA.kokyaku && authToken) {
       var folderName = (newA.kokyaku || '案件') + '_' + (newA.juchuDate || '').replace(/-/g,'');
-      // saveAnkenの完了を待ってからcreateFolder実行
-      // GASがfindRowByIdで新規行を確実に見つけられるようにするため
-      apiCall('saveAnken', { data: newA }).then(function(saveRes) {
-        if (!saveRes.ok) { console.error('案件保存エラー:', saveRes.error); return Promise.reject('保存失敗'); }
-        return apiCall('createFolder', { folderName: folderName, ankenId: newA.id });
-      }).then(function(r) {
-        if (!r || !r.ok || !r.folders) return;
-        if (r.folders.data) newA.data = r.folders.data;
-        if (r.folders.contractUrl) newA.contractUrl = r.folders.contractUrl;
-        if (r.folders.status3) newA.status3 = r.folders.status3;
-        saveAnkenSingle(newA);
-        renderDetailView(newA.id);
-        showToast('📁 Googleドライブに3つのフォルダを作成しました');
+      apiCall('createFolder', { folderName: folderName, ankenId: newA.id }).then(function(r) {
+        if (r.ok && r.folders) {
+          if (r.folders.data) newA.data = r.folders.data;
+          if (r.folders.contractUrl) newA.contractUrl = r.folders.contractUrl;
+          if (r.folders.status3) newA.status3 = r.folders.status3;
+          saveAnkenSingle(newA);
+          renderDetailView(newA.id);
+          showToast('📁 Googleドライブに3つのフォルダを作成しました');
+        }
       }).catch(function(e) { console.error('フォルダ作成エラー:', e); });
-    } else {
-      saveAnkenSingle(newA);
     }
   }
   if(added) showToast(`✅ 顧客「${added.name}」を自動登録しました（${added.custNo}）`);
@@ -4676,8 +4667,8 @@ function calcKekkaTeate(member, mIdx, targetYearMonth, ankenList) {
   var mo = Number(ym.split('-')[1]);
 
   // 対象月の工事案件（歩合確定日基準）
+  // ※ 数字進捗の除外フラグ（includeInSuji）は結果手当には影響しない
   var mAnken = ankenList.filter(function(a) {
-    if(a.includeInSuji === false) return false;
     var d = a.buai || '';
     var match = String(d).match(/(\d{4})[-\/](\d{1,2})/);
     if(!match) return false;
@@ -5496,14 +5487,18 @@ function parseJsonPreview(jsonRows) {
 
   const normDate = v => {
     if(!v) return '';
-    var s = String(v).trim().replace(/\//g, '-');
-    var m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-    if(m) return m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0');
-    // ロケール形式の場合はJSTで解釈してYYYY-MM-DDを返す
+    var s = String(v).trim();
+    // "2025/12/23" → "2025-12-23"
+    s = s.replace(/\//g, '-');
+    var m = s.match(/^(\d{4}-\d{1,2}-\d{1,2})/);
+    if(m) {
+      var parts = m[1].split('-');
+      return parts[0]+'-'+parts[1].padStart(2,'0')+'-'+parts[2].padStart(2,'0');
+    }
+    // "Monday, March 01, 1976" 等のロケール形式
     var dt = new Date(s);
     if(!isNaN(dt.getTime())) {
-      var jst = new Date(dt.getTime() + 9*60*60*1000);
-      return jst.getUTCFullYear()+'-'+String(jst.getUTCMonth()+1).padStart(2,'0')+'-'+String(jst.getUTCDate()).padStart(2,'0');
+      return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
     }
     return s;
   };
