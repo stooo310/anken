@@ -1544,7 +1544,7 @@ const FORM_SECTIONS = [
       { id:'f-dairi-no',   label:'代理店番号', type:'dairi-no', key:'dairiNo' },
       { id:'f-tsuki',      label:'月',         type:'month', key:'tsuki' },
       { id:'f-contract-url', label:'契約書データ（Google Drive URL）', type:'url', key:'contractUrl', placeholder:'https://drive.google.com/...', full:true },
-      { id:'f-include-suji', label:'数字進捗に含める', type:'checkbox', key:'includeInSuji', defaultVal:true },
+      { id:'f-include-suji', label:'数字進捗に含める', type:'checkbox', key:'includeInSuji', defaultVal:false },
     ]
   },
   {
@@ -2298,17 +2298,35 @@ function renderDetailView(id) {
   const shinpanSaved = parseFloat(a.shinpan) || 0;
   const shinpanDisp = shinpanSaved ? `¥${shinpanSaved.toLocaleString()}` : '-';
 
-  // 仲介手数料：保存値を優先
+  // 仲介手数料：保存値を優先、なければ代理店マスタの計算方式で自動計算
   const hasDairiNo = !!(a.dairiNo || '').trim();
   const priceNum = parseFloat(a.price) || 0;
   const chukaiSaved = parseFloat(a.chukai) || 0;
-  const chukaiVal = chukaiSaved ? chukaiSaved : ((hasDairiNo && priceNum > 0) ? Math.round((priceNum - zaikoNum2 - 550) * 0.3) : 0);
+  let chukaiVal = chukaiSaved;
+  if (!chukaiVal && hasDairiNo && priceNum > 0) {
+    const dairiMasterDisp = (settingsData && settingsData.dairiList || []).find(function(d){ return d.no === (a.dairiNo||'').trim(); });
+    const feeTypeDisp = (dairiMasterDisp && dairiMasterDisp.feeType) || 'arari';
+    const feeRateDisp = ((dairiMasterDisp && dairiMasterDisp.feeRate) || 0) / 100;
+    const shinpanForChukai = parseFloat(a.shinpan) || 0;
+    const arariDisp2 = priceNum - zaikoNum2;
+    const chukaiMidVal = priceNum - zaikoNum2 - shinpanForChukai;
+    if (feeRateDisp > 0) {
+      if (feeTypeDisp === 'arari') {
+        chukaiVal = Math.round(arariDisp2 * feeRateDisp);
+      } else if (feeTypeDisp === 'uriage') {
+        chukaiVal = Math.round(priceNum * feeRateDisp);
+      } else {
+        chukaiVal = Math.round(chukaiMidVal * feeRateDisp);
+      }
+    }
+  }
   const chukaiDisp = chukaiVal ? `¥${chukaiVal.toLocaleString()}` : '-';
 
-  // 計算対象金額：保存値を優先
+  // 計算対象金額：保存値を優先、なければ 物件価格－材工－信販手数料－仲介手数料
   const keisanSaved = parseFloat(a.keisan) || 0;
+  const keisanAutoDisp = priceNum - zaikoNum2 - shinpanSaved - chukaiVal;
   const keisanDisp = keisanSaved ? `¥${keisanSaved.toLocaleString()}`
-    : (priceNum > 0 ? `¥${(priceNum - zaikoNum2 - shinpanSaved - chukaiVal).toLocaleString()}` : '-');
+    : (priceNum > 0 ? `¥${(keisanAutoDisp > 0 ? keisanAutoDisp : 0).toLocaleString()}` : '-');
 
   // 粗利金額 = 物件価格 - 材工
   const arariVal = priceNum - zaikoNum2;
@@ -4545,7 +4563,7 @@ function removeMember(i) {
 
 // ===== 数字進捗 =====
 function getKeisanVal(a) {
-  // 計算対象金額：物件価格－材工－信販コスト－代理店手数料（代理店ありの場合）
+  // 計算対象金額：物件価格－材工－信販コスト－仲介手数料
   const zairyoC = (() => {
     const items = (a.teianContent||'').split('・').filter(s=>s&&!s.startsWith('その他'));
     const count = Math.max(1, parseInt(a.teianCount)||1);
@@ -4561,35 +4579,44 @@ function getKeisanVal(a) {
   const zaikoN  = parseFloat(a.zaiko) || (zairyoN+kojiN);
   const isLL = ['リース','ローン'].includes(a.keiyakuType||'');
   const shinpanFixed = isLL ? 550 : 0;
-  // 外部信販手数料（手入力値から固定550を引いた残り、または0）
-  const shinpanSaved = parseFloat(a.shinpan) || 0;
-  const shinpanExtra = Math.max(0, shinpanSaved - shinpanFixed);
   const price = parseFloat(a.price)||0;
   if (price <= 0) return 0;
 
-  // 代理店手数料
+  // 信販など手数料
+  const shinpanSaved = parseFloat(a.shinpan) || 0;
+  let shinpanTotal = shinpanSaved;
+  if (!shinpanTotal) {
+    const hasDairiK = !!(a.dairiNo||'').trim();
+    let shinpanRateK = 0;
+    if (hasDairiK && settingsData && settingsData.dairiList) {
+      const dcK = settingsData.dairiList.find(function(d){ return d.no === (a.dairiNo||'').trim(); });
+      shinpanRateK = (dcK && dcK.shinpanRate || 0) / 100;
+    }
+    const shinpanBK = (hasDairiK && shinpanRateK > 0) ? Math.round(price * shinpanRateK) : 0;
+    shinpanTotal = shinpanFixed + shinpanBK;
+  }
+
+  // 仲介手数料
   const hasDairi = !!(a.dairiNo||'').trim();
-  let dairiTesuryou = 0;
-  if (hasDairi) {
+  let dairiTesuryou = parseFloat(a.chukai) || 0;
+  if (!dairiTesuryou && hasDairi) {
     const dairiMaster = (settingsData && settingsData.dairiList || []).find(function(d){ return d.no === (a.dairiNo||'').trim(); });
     const feeType = (dairiMaster && dairiMaster.feeType) || 'arari';
     const feeRate = ((dairiMaster && dairiMaster.feeRate) || 0) / 100;
     if (feeRate > 0) {
-      const arari = price - zaikoN; // 粗利 = 物件価格 - 材工
+      const arari = price - zaikoN;
+      const midVal = price - zaikoN - shinpanTotal; // 中間値（計算対象ベース用）
       if (feeType === 'arari') {
         dairiTesuryou = Math.round(arari * feeRate);
       } else if (feeType === 'uriage') {
         dairiTesuryou = Math.round(price * feeRate);
-      } else { // keisan
-        dairiTesuryou = Math.round((price - zaikoN - shinpanFixed - shinpanExtra) * feeRate);
+      } else {
+        dairiTesuryou = Math.round(midVal * feeRate);
       }
-    } else {
-      // 手数料率未設定の場合は保存済み仲介手数料を使用
-      dairiTesuryou = parseFloat(a.chukai) || 0;
     }
   }
 
-  return price - zaikoN - shinpanFixed - shinpanExtra - dairiTesuryou;
+  return price - zaikoN - shinpanTotal - dairiTesuryou;
 }
 
 var sujiPeriod = '月次';
@@ -6171,33 +6198,33 @@ function autoCalcCosts(a) {
   }
   const price = parseFloat(a.price)||0;
   const zaiko = parseFloat(a.zaiko)||0;
-  const shinpanB = (hasDairiNo && shinpanRate > 0) ? Math.round(price * shinpanRate) : (hasDairiNo ? Math.round((price - zaiko - 550) * 0.3) : 0);
+  const shinpanB = (hasDairiNo && shinpanRate > 0) ? Math.round(price * shinpanRate) : 0;
   const autoShinpan = shinpanA + (shinpanB > 0 ? shinpanB : 0);
   if(!parseFloat(a.shinpan) && autoShinpan > 0) a.shinpan = String(autoShinpan);
 
-  // 計算対象金額（getKeisanValと同じロジック）
+  // 仲介手数料（自動セット：保存値なし＋代理店あり）
   const shinpanSavedAC = parseFloat(a.shinpan)||0;
-  const shinpanFixedAC = isLeaseLoan ? 550 : 0;
-  const shinpanExtraAC = Math.max(0, shinpanSavedAC - shinpanFixedAC);
-  let dairiTesuryouAC = 0;
-  if (hasDairiNo) {
+  let autoChukai = parseFloat(a.chukai) || 0;
+  if (!autoChukai && hasDairiNo && price > 0) {
     const dairiMasterAC = (settingsData && settingsData.dairiList || []).find(function(d){ return d.no === (a.dairiNo||'').trim(); });
     const feeTypeAC = (dairiMasterAC && dairiMasterAC.feeType) || 'arari';
     const feeRateAC = ((dairiMasterAC && dairiMasterAC.feeRate) || 0) / 100;
     if (feeRateAC > 0) {
       const arariAC = price - zaiko;
+      const midValAC = price - zaiko - shinpanSavedAC;
       if (feeTypeAC === 'arari') {
-        dairiTesuryouAC = Math.round(arariAC * feeRateAC);
+        autoChukai = Math.round(arariAC * feeRateAC);
       } else if (feeTypeAC === 'uriage') {
-        dairiTesuryouAC = Math.round(price * feeRateAC);
+        autoChukai = Math.round(price * feeRateAC);
       } else {
-        dairiTesuryouAC = Math.round((price - zaiko - shinpanFixedAC - shinpanExtraAC) * feeRateAC);
+        autoChukai = Math.round(midValAC * feeRateAC);
       }
-    } else {
-      dairiTesuryouAC = parseFloat(a.chukai) || 0;
     }
   }
-  const keisan = price - zaiko - shinpanFixedAC - shinpanExtraAC - dairiTesuryouAC;
+  if (!parseFloat(a.chukai) && autoChukai > 0) a.chukai = String(autoChukai);
+
+  // 計算対象金額 = 物件価格 − 材工 − 信販など手数料 − 仲介手数料
+  const keisan = price - zaiko - shinpanSavedAC - autoChukai;
   if(!parseFloat(a.keisan) && keisan > 0) a.keisan = String(keisan);
 
   // ★ 代理店向け卸値の自動コピー（手入力がなければ工事費・材料費をコピー）
@@ -6281,9 +6308,6 @@ function calcShinpan(targetId) {
   let bLabel = '';
   if(hasDairiNo && shinpanRate > 0) {
     shinpanB = Math.round(price * shinpanRate);
-    bLabel = 'B(代理店あり)=¥' + shinpanB.toLocaleString();
-  } else if(hasDairiNo) {
-    shinpanB = Math.round((price - zaiko - 550) * 0.3);
     bLabel = 'B(代理店あり)=¥' + shinpanB.toLocaleString();
   }
   const total = shinpanA + (shinpanB > 0 ? shinpanB : 0);
