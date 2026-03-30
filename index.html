@@ -1648,7 +1648,7 @@ const FORM_SECTIONS = [
       { id:'f-shinsa',     label:'審査結果',           type:'select', key:'shinsaResult',
         options:['','未申請','審査中','OK','NG'] },
       { id:'f-keisan',     label:'計算対象金額',       type:'number-calc', key:'keisan',    placeholder:'0', calcType:'keisan' },
-      { id:'f-chukai',     label:'仲介手数料（税込）', type:'number', key:'chukai',    placeholder:'0' },
+      { id:'f-chukai',     label:'仲介手数料（税込）', type:'number-calc', key:'chukai',    placeholder:'0', calcType:'chukai' },
       { id:'f-nyukin',     label:'入金額（税込）',     type:'number', key:'nyukin',    placeholder:'0' },
       { id:'f-nyukin-date',label:'入金日',            type:'date',   key:'nyukinDate' },
       { id:'f-hoshu-date', label:'初回引落日',        type:'date',   key:'hoshuDate' },
@@ -2497,6 +2497,7 @@ function buildDetailEditForm(a) {
           else if(f.calcType==='zaiko')     { btnLabel='🔢 材料費＋工事費'; onclickFn=`calcZaiko('de-${f.id}')`; }
           else if(f.calcType==='shinpan')   { btnLabel='🔢 自動計算'; onclickFn=`calcShinpan('de-${f.id}')`; }
           else if(f.calcType==='keisan')    { btnLabel='🔢 自動計算'; onclickFn=`calcKeisan('de-${f.id}')`; }
+          else if(f.calcType==='chukai')    { btnLabel='🔢 自動計算'; onclickFn=`calcChukai('de-${f.id}')`; }
           else if(f.calcType==='ripuKotsu') { btnLabel='🔢 自動計算'; onclickFn=`calcRipuKotsu('de-${f.id}')`; }
           else if(f.calcType==='ripuArari') { btnLabel='🔢 自動計算'; onclickFn=`calcRipuArari('de-${f.id}')`; }
           body += `<div class="form-group" ${fullCls}><label>${f.label}</label>
@@ -2755,6 +2756,7 @@ function buildForm(type, data) {
         else if(f.calcType==='zaiko')     { btnLabel='🔢 材料費＋工事費'; onclickFn=`calcZaiko('${f.id}')`; }
         else if(f.calcType==='shinpan')   { btnLabel='🔢 自動計算'; onclickFn=`calcShinpan('${f.id}')`; }
         else if(f.calcType==='keisan')    { btnLabel='🔢 自動計算'; onclickFn=`calcKeisan('${f.id}')`; }
+        else if(f.calcType==='chukai')    { btnLabel='🔢 自動計算'; onclickFn=`calcChukai('${f.id}')`; }
         else if(f.calcType==='ripuKotsu') { btnLabel='🔢 自動計算'; onclickFn=`calcRipuKotsu('${f.id}')`; }
         else if(f.calcType==='ripuArari') { btnLabel='🔢 自動計算'; onclickFn=`calcRipuArari('${f.id}')`; }
         html += `<div class="form-group" ${fullCls}><label>${f.label}</label>
@@ -6324,7 +6326,60 @@ function calcShinpan(targetId) {
   const keisanId = prefix + 'f-keisan';
   const keisanEl = document.getElementById(keisanId);
   if(keisanEl) {
-    const keisan = price - zaiko - total;
+    const chukai = getFieldVal(prefix, 'f-chukai');
+    const keisan = price - zaiko - total - chukai;
+    keisanEl.value = keisan > 0 ? keisan : 0;
+  }
+}
+
+function calcChukai(targetId) {
+  const prefix = targetId.startsWith('de-') ? 'de-' : '';
+  const dairiNo = getFieldStr(prefix, 'f-dairi-no');
+  const price = getFieldVal(prefix, 'f-price');
+  const zaiko = getFieldVal(prefix, 'f-zaiko');
+  const shinpan = getFieldVal(prefix, 'f-shinpan');
+  const hasDairiNo = !!dairiNo;
+
+  if (!hasDairiNo || price <= 0) {
+    const preview = document.getElementById(targetId + '-preview');
+    if (preview) preview.textContent = '代理店番号を入力してください';
+    return;
+  }
+
+  const dairiMaster = (settingsData && settingsData.dairiList || []).find(function(d) { return d.no === dairiNo.trim(); });
+  const feeType = (dairiMaster && dairiMaster.feeType) || 'arari';
+  const feeRate = ((dairiMaster && dairiMaster.feeRate) || 0) / 100;
+
+  if (feeRate <= 0) {
+    const preview = document.getElementById(targetId + '-preview');
+    if (preview) preview.textContent = '代理店マスタに手数料率が設定されていません';
+    return;
+  }
+
+  const arari = price - zaiko;           // 粗利 = 物件価格 − 材工
+  const midVal = price - zaiko - shinpan; // 中間値（計算対象ベース用）
+  let chukai = 0;
+  let label = '';
+  if (feeType === 'arari') {
+    chukai = Math.round(arari * feeRate);
+    label = `粗利ベース: ¥${arari.toLocaleString()} × ${dairiMaster.feeRate}% = ¥${chukai.toLocaleString()}`;
+  } else if (feeType === 'uriage') {
+    chukai = Math.round(price * feeRate);
+    label = `売上ベース: ¥${price.toLocaleString()} × ${dairiMaster.feeRate}% = ¥${chukai.toLocaleString()}`;
+  } else {
+    chukai = Math.round(midVal * feeRate);
+    label = `計算対象ベース: ¥${midVal.toLocaleString()} × ${dairiMaster.feeRate}% = ¥${chukai.toLocaleString()}`;
+  }
+
+  document.getElementById(targetId).value = chukai;
+  const preview = document.getElementById(targetId + '-preview');
+  if (preview) preview.textContent = label;
+
+  // 計算対象金額も連動更新
+  const keisanId = prefix + 'f-keisan';
+  const keisanEl = document.getElementById(keisanId);
+  if (keisanEl) {
+    const keisan = price - zaiko - shinpan - chukai;
     keisanEl.value = keisan > 0 ? keisan : 0;
   }
 }
@@ -6334,10 +6389,11 @@ function calcKeisan(targetId) {
   const price = getFieldVal(prefix, 'f-price');
   const zaiko = getFieldVal(prefix, 'f-zaiko');
   const shinpan = getFieldVal(prefix, 'f-shinpan');
-  const total = price - zaiko - shinpan;
+  const chukai = getFieldVal(prefix, 'f-chukai');
+  const total = price - zaiko - shinpan - chukai;
   document.getElementById(targetId).value = total > 0 ? total : 0;
   const preview = document.getElementById(targetId+'-preview');
-  if(preview) preview.textContent = `¥${price.toLocaleString()} − ¥${zaiko.toLocaleString()} − ¥${shinpan.toLocaleString()} = ¥${(total>0?total:0).toLocaleString()}`;
+  if(preview) preview.textContent = `¥${price.toLocaleString()} − ¥${zaiko.toLocaleString()} − ¥${shinpan.toLocaleString()} − ¥${chukai.toLocaleString()} = ¥${(total>0?total:0).toLocaleString()}`;
 }
 
 // 選択済み項目の「その他:XXX」を除いたチップ名を取得
