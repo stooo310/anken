@@ -2470,6 +2470,7 @@ function buildDetailEditForm(a) {
         const val = a[fieldKeyLegacy(f.id)]||'';
         const fullCls = f.full ? 'style="grid-column:1/-1"' : '';
         if(f.type==='textarea') body += `<div class="form-group" ${fullCls}><label>${f.label}</label><textarea id="de-${f.id}">${val}</textarea></div>`;
+        else if(f.type==='date') body += `<div class="form-group" ${fullCls}><label>${f.label}</label><div style="display:flex;gap:6px;align-items:center;"><input type="date" id="de-${f.id}" value="${val}" style="flex:1;"><button type="button" onclick="document.getElementById('de-${f.id}').value=''" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg3);color:var(--text2);cursor:pointer;font-size:12px;white-space:nowrap;line-height:1.4;">✕ クリア</button></div></div>`;
         else body += `<div class="form-group" ${fullCls}><label>${f.label}</label><input type="${f.type}" id="de-${f.id}" value="${val}" placeholder="${f.placeholder||''}"></div>`;
       });
       body += '</div>';
@@ -2546,6 +2547,12 @@ function buildDetailEditForm(a) {
             ckVal = val !== false && val !== 'false' && val !== 'FALSE' && val !== 0;
           }
           body += `<div class="form-group" ${fullCls}><label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="de-${f.id}" ${ckVal?' checked':''} style="accent-color:var(--accent);width:18px;height:18px;"> ${f.label}</label></div>`;
+        } else if(f.type==='date') {
+          body += `<div class="form-group" ${fullCls}><label>${f.label}</label>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <input type="date" id="de-${f.id}" value="${val}" style="flex:1;">
+              <button type="button" onclick="document.getElementById('de-${f.id}').value=''" title="日付をクリア" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg3);color:var(--text2);cursor:pointer;font-size:12px;white-space:nowrap;line-height:1.4;">✕ クリア</button>
+            </div></div>`;
         } else {
           body += `<div class="form-group" ${fullCls}><label>${f.label}</label><input type="${f.type}" id="de-${f.id}" value="${val}" placeholder="${f.placeholder||''}"></div>`;
         }
