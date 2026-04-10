@@ -2467,7 +2467,12 @@ function buildDetailEditForm(a) {
       if(!curSec||!secFields.length) return;
       let body = '<div class="dp-edit-grid">';
       secFields.forEach(f => {
-        const val = a[fieldKeyLegacy(f.id)]||'';
+        let val = a[fieldKeyLegacy(f.id)]||'';
+        // date型は YYYY-MM-DD 形式に正規化
+        if(f.type==='date' && val) {
+          const dm = String(val).match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+          val = dm ? `${dm[1]}-${String(dm[2]).padStart(2,'0')}-${String(dm[3]).padStart(2,'0')}` : '';
+        }
         const fullCls = f.full ? 'style="grid-column:1/-1"' : '';
         if(f.type==='textarea') body += `<div class="form-group" ${fullCls}><label>${f.label}</label><textarea id="de-${f.id}">${val}</textarea></div>`;
         else if(f.type==='date') body += `<div class="form-group" ${fullCls}><label>${f.label}</label><div style="display:flex;gap:6px;align-items:center;"><input type="date" id="de-${f.id}" value="${val}" style="flex:1;"><button type="button" onclick="document.getElementById('de-${f.id}').value=''" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg3);color:var(--text2);cursor:pointer;font-size:12px;white-space:nowrap;line-height:1.4;">✕ クリア</button></div></div>`;
@@ -2483,7 +2488,12 @@ function buildDetailEditForm(a) {
     FORM_SECTIONS.forEach(sec => {
       let body = '<div class="dp-edit-grid">';
       sec.fields.forEach(f => {
-        const val = a[f.key]||'';
+        let val = a[f.key]||'';
+        // date型は YYYY-MM-DD 形式に正規化（スラッシュ区切りなどを変換）
+        if(f.type==='date' && val) {
+          const dm = String(val).match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+          val = dm ? `${dm[1]}-${String(dm[2]).padStart(2,'0')}-${String(dm[3]).padStart(2,'0')}` : '';
+        }
         const fullCls = f.full ? 'style="grid-column:1/-1"' : '';
         if(f.type==='textarea') {
           body += `<div class="form-group" ${fullCls}><label>${f.label}</label><textarea id="de-${f.id}">${val}</textarea></div>`;
@@ -2644,9 +2654,12 @@ function saveDetailEdit() {
         } else {
           const el = document.getElementById('de-'+f.id);
           // 空文字で既存の重要データを上書きしないよう保護
+          // ただしdate型はクリア（空文字）でも保存を許可する
           if(el) {
             const v = el.value;
-            if(v !== '' || f.key === 'memo' || f.key === 'memo2') {
+            if(f.type === 'date') {
+              a[f.key] = v; // 日付は空クリアも保存
+            } else if(v !== '' || f.key === 'memo' || f.key === 'memo2') {
               a[f.key] = v;
             } else if(v === '' && !a[f.key]) {
               a[f.key] = v;
