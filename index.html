@@ -1740,16 +1740,8 @@ var kokyakuList = [];
 
 var _saveAnkenTimer = null;
 function saveAnkenData() {
-  // デバウンス: 短時間の連続保存を防止（最後の呼び出しから1.5秒後に実行）
-  if (_saveAnkenTimer) clearTimeout(_saveAnkenTimer);
-  _saveAnkenTimer = setTimeout(function() {
-    _saveAnkenTimer = null;
-    if (authToken) {
-      apiCall('bulkSaveAnken', { data: ankenList }).then(function(r) {
-        if (!r.ok) console.error('案件保存エラー:', r.error);
-      }).catch(function(e) { console.error('案件保存通信エラー:', e); });
-    }
-  }, 1500);
+  // ★ bulkSaveAnken廃止: 全件上書きによるデータ消失を防ぐため何もしない
+  // 保存はsaveAnkenSingle（1件ずつ）のみで行う
 }
 function saveKokyakuData() {
   // 顧客は1件ずつ保存ではなく、変更のあった顧客を保存
@@ -2686,14 +2678,7 @@ function saveDetailEdit() {
   if(parseFloat(a.ripuKotsu)) {
     a.dairiKotsu = a.ripuKotsu;
   }
-  // 即時保存（デバウンスをキャンセルして即座にbulk保存）
-  if(_saveAnkenTimer) clearTimeout(_saveAnkenTimer);
-  _saveAnkenTimer = null;
-  if (authToken) {
-    apiCall('bulkSaveAnken', { data: ankenList }).then(function(r) {
-      if (!r.ok) console.error('案件保存エラー:', r.error);
-    }).catch(function(e) { console.error('案件保存通信エラー:', e); });
-  }
+  // saveAnkenSingle（1件のみ保存）に統一
   saveAnkenSingle(a);
   renderAnkenTable();
   if(document.getElementById('page-koji').style.display !== 'none') renderKoji();
@@ -3367,7 +3352,7 @@ function saveAnken() {
     autoCalcCosts(newItem);
     ankenList.unshift(newItem);
   }
-  saveAnkenData(); closeAnkenModal(); renderAnkenTable();
+  closeAnkenModal(); renderAnkenTable();
   // 新規/編集した案件をAPI個別保存
   if(editingAnkenId) {
     var saved = ankenList.find(x=>x.id===editingAnkenId);
@@ -3399,7 +3384,7 @@ function copyAnken(id) {
   const copyId = Date.now();
   const copy = { ...a, id: copyId, kokyaku: a.kokyaku+'【コピー】', status: STATUS_MAP[a.type][0], juchuDate: '', data:'', contractUrl:'', status3:'' };
   ankenList.unshift(copy);
-  saveAnkenData(); renderAnkenTable();
+  renderAnkenTable();
   openEditAnken(copy.id);
   // API保存 → 完了後にフォルダ作成
   if (authToken) {
@@ -3414,7 +3399,6 @@ function copyAnken(id) {
               if (r.folders.data) target.data = r.folders.data;
               if (r.folders.contractUrl) target.contractUrl = r.folders.contractUrl;
               if (r.folders.status3) target.status3 = r.folders.status3;
-              saveAnkenData();
               saveAnkenSingle(target);
               showToast('📁 Googleドライブに3つのフォルダを作成しました');
               // 編集画面が開いていたら再描画
