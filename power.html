@@ -2026,7 +2026,7 @@ function renderDairiPay() {
                 + '<td class="td-date">' + fmtDate(p.paymentDate||'-') + '</td>'
                 + '<td class="td-amount" style="font-weight:700;color:var(--green);">' + fmtYen(p.amount) + '</td>'
                 + '<td style="font-size:12px;color:var(--text2);">' + (p.memo||'-') + '</td>'
-                + (isAdmin ? '<td><button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 6px;color:#ef4444;" onclick="deletePayment('+p.id+')">削除</button></td>' : '')
+                + (isAdmin ? '<td><button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 6px;color:#ef4444;" onclick="deletePayment(\''+String(p.id).replace(/\x27/g,"\\\x27")+'\')">削除</button></td>' : '')
                 + '</tr>';
             }).join('')
           + '</tbody></table></div>'
@@ -2096,15 +2096,16 @@ async function saveInitialBalance() {
   try {
     // 既存があれば削除してから新規登録
     if (existingId) {
-      await apiCall('deletePaymentHistory', { id: existingId });
-      paymentList = paymentList.filter(function(p) { return String(p.id) !== String(existingId); });
+      await apiCall('deletePaymentHistory', { id: String(existingId) });
     }
     var res = await apiCall('savePaymentHistory', {
       data: { dairiNo: dairiNo, dairiName: dairiName, amount: amount,
               paymentDate: '', memo: 'システム導入前の初期残高', type: 'initial' }
     });
     if (res.ok) {
-      paymentList.push(res.data);
+      // サーバーから再取得して真実ベースに（ID整合性担保）
+      var refresh = await apiCall('getPaymentHistory');
+      if (refresh.ok) paymentList = refresh.data || [];
       showToast('✅ 初期残高を設定しました');
       closeInitialBalanceModal();
       renderDairiPay();
@@ -2148,9 +2149,11 @@ async function savePayment() {
   btn.disabled = true; btn.textContent = '保存中...';
 
   try {
-    var res = await apiCall('savePaymentHistory', { data: { dairiNo, dairiName, amount, paymentDate, memo } });
+    var res = await apiCall('savePaymentHistory', { data: { dairiNo: dairiNo, dairiName: dairiName, amount: amount, paymentDate: paymentDate, memo: memo } });
     if (res.ok) {
-      paymentList.push(res.data);
+      // サーバーから再取得して真実ベースに（ID整合性担保）
+      var refresh = await apiCall('getPaymentHistory');
+      if (refresh.ok) paymentList = refresh.data || [];
       showToast('✅ 支払いを登録しました');
       closePaymentModal();
       renderDairiPay();
@@ -2165,11 +2168,17 @@ async function savePayment() {
 }
 
 async function deletePayment(id) {
+  if (id === undefined || id === null || id === '' || id === 'undefined') {
+    showToast('❌ IDが不正です');
+    return;
+  }
   if (!confirm('この支払い履歴を削除しますか？')) return;
   try {
-    var res = await apiCall('deletePaymentHistory', { id: id });
+    var res = await apiCall('deletePaymentHistory', { id: String(id) });
     if (res.ok) {
-      paymentList = paymentList.filter(function(p) { return p.id != id; });
+      // サーバーから再取得して真実ベースに
+      var refresh = await apiCall('getPaymentHistory');
+      if (refresh.ok) paymentList = refresh.data || [];
       showToast('✅ 削除しました');
       renderDairiPay();
     } else {
