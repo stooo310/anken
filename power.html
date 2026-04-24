@@ -1480,26 +1480,51 @@ function parseOyayubi(lines, importMonth) {
     });
 
     // 数値を全部拾う
+    // 拾うのは: 整数(100以上) または 金額らしき小数(.00 / .80 など)
+    // 除外するのは: 契約容量(46.0 など小さい小数)、供給地点番号(20-22桁)、需要場所ID(PPxxx)
     var nums = [];
     parts.forEach(function(p) {
-      var cleaned = p.replace(/[,，]/g, '').replace(/\.00$/, '');
-      if (/^\d+$/.test(cleaned) && cleaned.length >= 2) {
-        nums.push(Number(cleaned));
+      // 供給地点番号(20-22桁)は除外
+      if (/^\d{20,22}$/.test(p)) return;
+      // 需要場所ID（PPで始まる）は除外
+      if (/^PP\d+/.test(p)) return;
+
+      var cleaned = p.replace(/[,，]/g, '');
+      // 小数パターン: 123.45
+      if (/^\d+\.\d+$/.test(cleaned)) {
+        var n = Math.floor(Number(cleaned));
+        // 100以上の小数のみ金額として扱う（46.0のような契約容量は除外）
+        if (n >= 100) {
+          nums.push(n);
+        }
+        return;
+      }
+      // 整数パターン: 123
+      if (/^\d+$/.test(cleaned)) {
+        var n = Number(cleaned);
+        // 2桁以上、かつ20桁未満の整数を拾う（供給地点番号などの極端な長さは除外）
+        if (n >= 10 && cleaned.length < 15) {
+          nums.push(n);
+        }
       }
     });
 
     // 案件名あり → 通常行
     if (customerName && nums.length >= 1) {
+      // 親指でんきの列構成（PDF）: 使用電力量, 契約容量, 請求金額, 再エネ賦課金, 対象金額, 紹介料, (管理費), 支払金額
+      // 「紹介料」=「支払金額」で末尾に重複するため、最後から拾う
+      // 管理費は通常空
       var commission = nums[nums.length - 1];
       var targetAmount = nums.length >= 3 ? nums[nums.length - 3] : 0;
-      var billingAmount = nums.length >= 5 ? nums[nums.length - 5] : 0;
       var renewableLevy = nums.length >= 4 ? nums[nums.length - 4] : 0;
+      var billingAmount = nums.length >= 5 ? nums[nums.length - 5] : 0;
+      var usage = nums.length >= 6 ? nums[nums.length - 6] : 0;
 
       rows.push({
         importMonth: importMonth, powerCompany: '親指',
         dataMonth: dataMonth, customerName: customerName,
         supplyPointNo: supplyPoint, planName: '',
-        usage: 0, capacity: 0, capacityUnit: '',
+        usage: usage, capacity: 0, capacityUnit: '',
         billingAmount: billingAmount, renewableLevy: renewableLevy, otherDeduction: 0,
         targetAmount: targetAmount, commission: commission,
         managementFee: 0, dairiShare: 0, paymentDate: '',
