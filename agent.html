@@ -606,11 +606,20 @@ function setStatusFilter(s) {
 }
 
 // ===== 案件テーブル =====
-var _ankenSortKey = 'juchuDate';
-var _ankenSortDir = 'desc';
+var _ankenSortKey = '';   // 空 = デフォルト（受注日降順）
+var _ankenSortDir = '';
 function toggleAnkenSort(key) {
   if (_ankenSortKey === key) {
-    _ankenSortDir = _ankenSortDir === 'asc' ? 'desc' : 'asc';
+    // 同じ列を再クリック: 昇順→降順→解除 の3段階
+    if (_ankenSortDir === 'asc') {
+      _ankenSortDir = 'desc';
+    } else if (_ankenSortDir === 'desc') {
+      // 3回目: ソート解除（デフォルトに戻す）
+      _ankenSortKey = '';
+      _ankenSortDir = '';
+    } else {
+      _ankenSortDir = 'asc';
+    }
   } else {
     _ankenSortKey = key;
     _ankenSortDir = 'asc';
@@ -630,9 +639,9 @@ function renderAnkenTable() {
     return matchStatus && matchQ && matchMonth && matchDairi;
   });
 
-  // ソート
+  // ソート（_ankenSortKeyが空ならデフォルト=受注日降順）
   var sortKey = _ankenSortKey || 'juchuDate';
-  var sortDir = _ankenSortDir || 'desc';
+  var sortDir = _ankenSortKey ? _ankenSortDir : 'desc';
   filtered.sort(function(a, b) {
     var va = (a[sortKey]||'').toString();
     var vb = (b[sortKey]||'').toString();
@@ -651,11 +660,11 @@ function renderAnkenTable() {
   thead.innerHTML = sortTh('ステータス','status')
     + (isAdmin ? sortTh('代理店','dairiNo') : '')
     + '<th>種別</th>'
-    + '<th>受注日</th>'
+    + sortTh('受注日','juchuDate')
     + '<th>顧客名</th>'
     + sortTh('提案内容','teianContent')
     + '<th>手数料</th>'
-    + '<th>完工日</th>'
+    + sortTh('完工日','kojiKanryo')
     + '<th>フォルダ</th>';
 
   if (filtered.length === 0) {
