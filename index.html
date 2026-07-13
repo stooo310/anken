@@ -1409,15 +1409,19 @@ var settingsData = (() => {
         {name:'佐藤 勇司',   empNo:'S24-01-1', role:'外勤', targetP:0, hosei:{kotei:[]}},
         {name:'吉田 十兵衛', empNo:'S25-04-1', role:'外勤', targetP:0, hosei:{kotei:[]}},
         {name:'小林 大輝',   empNo:'S25-11-1', role:'外勤', targetP:0, hosei:{kotei:[]}},
+        {name:'柳澤 竜太',   empNo:'S26-04-1', role:'外勤', targetP:0, hosei:{kotei:[]}},
+        {name:'岩﨑 陣',     empNo:'S26-08-1', role:'内勤', targetP:0, hosei:{kotei:[]}},
       ];
     } else {
-      const nameMap = {'里':'里 健太郎','佐藤':'佐藤 勇司','吉田':'吉田 十兵衛','小林':'小林 大輝'};
+      const nameMap = {'里':'里 健太郎','佐藤':'佐藤 勇司','吉田':'吉田 十兵衛','小林':'小林 大輝','柳澤':'柳澤 竜太','岩﨑':'岩﨑 陣'};
       raw.members.forEach(m => { if(nameMap[m.name]) m.name = nameMap[m.name]; });
       const defaultMembers = [
         {name:'里 健太郎',   empNo:'S22-03-1', role:'外勤', targetP:0, hosei:{kotei:[]}},
         {name:'佐藤 勇司',   empNo:'S24-01-1', role:'外勤', targetP:0, hosei:{kotei:[]}},
         {name:'吉田 十兵衛', empNo:'S25-04-1', role:'外勤', targetP:0, hosei:{kotei:[]}},
         {name:'小林 大輝',   empNo:'S25-11-1', role:'外勤', targetP:0, hosei:{kotei:[]}},
+        {name:'柳澤 竜太',   empNo:'S26-04-1', role:'外勤', targetP:0, hosei:{kotei:[]}},
+        {name:'岩﨑 陣',     empNo:'S26-08-1', role:'内勤', targetP:0, hosei:{kotei:[]}},
       ];
       defaultMembers.forEach(def => {
         const exists = raw.members.find(m => m.name === def.name);
