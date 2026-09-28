@@ -737,6 +737,18 @@ tbody tr:hover td { background: #f7f9ff; }
         </div>
       </div>
 
+      <!-- 担当ランク -->
+      <div class="dash-card" style="margin-bottom:20px;">
+        <div class="dash-card-title">🎖️ 担当ランク（ショット系）</div>
+        <div style="margin-top:14px;font-size:13px;color:var(--text3);margin-bottom:16px;line-height:1.7;">
+          ランクが付いたメンバーは、<b>担当者（アポなし／アポあり／アップセル）・自アポ自営（通常／アップセル）</b>の率がランクの率に置き換わります。<br>
+          アポのみの案件は上の共通ルールのまま。ランクなしのメンバーは今まで通り共通ルールで計算します。
+        </div>
+        <div id="hs-rank-table" style="margin-bottom:18px;"></div>
+        <div style="font-size:12px;font-weight:600;color:var(--text3);margin-bottom:8px;">メンバー別 ランク履歴（適用開始月から切替）</div>
+        <div id="hs-rank-members"></div>
+      </div>
+
       <!-- メンバー別新電力手数料・変動費 -->
       <div class="dash-card" style="margin-bottom:20px;">
         <div class="dash-card-title">⚡ メンバー別 新電力手数料・変動費（月別）</div>
@@ -3959,6 +3971,115 @@ function switchSettingsTab(tab) {
   if(tab === 'dairi') renderDairiSettings();
 }
 
+// ===== 率ヘルパー（空欄と0を区別する） =====
+function isRateSet(v) { return v !== undefined && v !== null && String(v).trim() !== '' && !isNaN(Number(v)); }
+function pickRate(v, def) { return isRateSet(v) ? Number(v) : def; }
+function normYm(v) {
+  var m = String(v||'').match(/(\d{4})[-\/](\d{1,2})/);
+  return m ? m[1] + '-' + String(Number(m[2])).padStart(2,'0') : '';
+}
+
+// ===== 担当ランク =====
+var TANTO_RANK_KEYS = ['A','B','C','D','E'];
+var TANTO_RANK_DEFAULT = { A:5, B:10, C:15, D:20, E:25 };
+
+function getTantoRanks() {
+  var saved = (settingsData.hoseiRule || {}).tantoRanks || {};
+  var out = {};
+  TANTO_RANK_KEYS.forEach(function(k) { out[k] = pickRate(saved[k], TANTO_RANK_DEFAULT[k]); });
+  return out;
+}
+
+// 対象月（YYYY-MM）時点のランク。履歴のうち「開始月 <= 対象月」で最新の行を採用。'' = ランクなし（共通ルール）
+function getMemberTantoRank(member, ym) {
+  var target = normYm(ym);
+  var hist = ((member||{}).hosei||{}).rankHistory || [];
+  var best = null;
+  hist.forEach(function(h) {
+    var from = normYm(h && h.from);
+    if(!from || from > target) return;
+    if(!best || from >= best.from) best = { from: from, rank: (h.rank||'') };
+  });
+  return best && TANTO_RANK_KEYS.indexOf(best.rank) >= 0 ? best.rank : '';
+}
+
+function renderTantoRankSettings() {
+  var tbl = document.getElementById('hs-rank-table');
+  var mem = document.getElementById('hs-rank-members');
+  if(!tbl || !mem) return;
+  var ranks = getTantoRanks();
+  var inp = 'width:60px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;background:var(--bg);color:var(--text);text-align:center;';
+  tbl.innerHTML = '<div style="display:flex;gap:10px;flex-wrap:wrap;">'
+    + TANTO_RANK_KEYS.map(function(k) {
+        return '<div style="display:flex;align-items:center;gap:6px;padding:8px 12px;background:var(--bg2);border-radius:8px;">'
+          + '<span style="font-size:13px;font-weight:700;min-width:18px;">' + k + '</span>'
+          + '<input type="number" min="0" value="' + ranks[k] + '" style="' + inp + '" oninput="setTantoRankRate(\'' + k + '\',this.value)">'
+          + '<span style="font-size:13px;color:var(--text3);">%</span></div>';
+      }).join('')
+    + '</div>';
+
+  var members = settingsData.members || [];
+  if(members.length === 0) { mem.innerHTML = '<p style="font-size:13px;color:var(--text3);">数字進捗設定でメンバーを先に登録してください</p>'; return; }
+  var now = new Date();
+  var curYm = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+  var sel = 'padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;background:var(--bg);color:var(--text);';
+  mem.innerHTML = members.map(function(m, i) {
+    var hist = ((m.hosei||{}).rankHistory || []);
+    var cur = getMemberTantoRank(m, curYm);
+    var curLabel = cur ? (cur + '（' + ranks[cur] + '%）') : 'ランクなし（共通ルール）';
+    var rows = hist.map(function(h, hi) { return {h:h, hi:hi}; })
+      .sort(function(x, y) { return normYm(x.h.from) < normYm(y.h.from) ? -1 : 1; })
+      .map(function(o) {
+        var opts = '<option value="">なし（共通ルール）</option>' + TANTO_RANK_KEYS.map(function(k) {
+          return '<option value="' + k + '"' + (o.h.rank===k?' selected':'') + '>' + k + '（' + ranks[k] + '%）</option>';
+        }).join('');
+        return '<div style="display:flex;gap:8px;align-items:center;margin-top:6px;">'
+          + '<input type="month" value="' + normYm(o.h.from) + '" style="' + sel + '" onchange="setRankHistory(' + i + ',' + o.hi + ',\'from\',this.value)">'
+          + '<span style="font-size:12px;color:var(--text3);">〜</span>'
+          + '<select style="' + sel + '" onchange="setRankHistory(' + i + ',' + o.hi + ',\'rank\',this.value)">' + opts + '</select>'
+          + '<button onclick="removeRankHistory(' + i + ',' + o.hi + ')" style="padding:4px 8px;border:1px solid var(--border);border-radius:5px;background:var(--bg2);color:var(--text3);cursor:pointer;font-size:12px;">✕</button>'
+          + '</div>';
+      }).join('');
+    return '<div style="border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:8px;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">'
+      + '<span style="font-size:13px;font-weight:700;">👤 ' + (m.name||'メンバー'+(i+1)) + '</span>'
+      + '<span style="font-size:12px;color:' + (cur ? 'var(--accent)' : 'var(--text3)') + ';">今月：' + curLabel + '</span>'
+      + '</div>'
+      + rows
+      + '<button onclick="addRankHistory(' + i + ')" style="margin-top:8px;padding:4px 10px;border:1px solid var(--border);border-radius:5px;background:var(--bg2);color:var(--text3);cursor:pointer;font-size:12px;">＋ ランク変更を追加</button>'
+      + '</div>';
+  }).join('');
+}
+
+function setTantoRankRate(k, v) {
+  if(!settingsData.hoseiRule) settingsData.hoseiRule = getHoseiRule();
+  if(!settingsData.hoseiRule.tantoRanks) settingsData.hoseiRule.tantoRanks = {};
+  if(String(v).trim() === '') delete settingsData.hoseiRule.tantoRanks[k];
+  else settingsData.hoseiRule.tantoRanks[k] = Number(v);
+}
+
+function addRankHistory(mIdx) {
+  var m = settingsData.members[mIdx];
+  if(!m.hosei) m.hosei = {};
+  if(!m.hosei.rankHistory) m.hosei.rankHistory = [];
+  var now = new Date();
+  m.hosei.rankHistory.push({ from: now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0'), rank: '' });
+  renderTantoRankSettings();
+}
+
+function setRankHistory(mIdx, hi, field, val) {
+  var h = ((settingsData.members[mIdx].hosei||{}).rankHistory||[])[hi];
+  if(!h) return;
+  h[field] = field === 'from' ? normYm(val) : val;
+  renderTantoRankSettings();
+}
+
+function removeRankHistory(mIdx, hi) {
+  var hist = ((settingsData.members[mIdx].hosei||{}).rankHistory||[]);
+  hist.splice(hi, 1);
+  renderTantoRankSettings();
+}
+
 // ===== 歩合設定（設定ページ内） =====
 function getHoseiRule() {
   return settingsData.hoseiRule || {
@@ -3981,6 +4102,7 @@ function renderHoseiInputs() {
   var hsYear = document.getElementById('hs-year');
   if(hsYear) hsYear.value = settingsData.settingYear || new Date().getFullYear();
   renderHoseiKotei();
+  renderTantoRankSettings();
   renderMemberHendouhiTable();
 }
 
@@ -4205,7 +4327,7 @@ function buildKekkaAnkenDetail(shotList, rentalList, shindenTotal, yen) {
       html += '<td style="padding:5px 8px;">' + (item.a.keiyakuType||'-') + '</td>';
       html += '<td style="padding:5px 8px;"><span style="font-size:10px;padding:1px 6px;border-radius:8px;background:var(--bg2);">' + item.role + '</span></td>';
       html += '<td style="padding:5px 8px;text-align:right;">' + yen(item.keisan) + '</td>';
-      html += '<td style="padding:5px 8px;text-align:right;">' + item.pct + '%</td>';
+      html += '<td style="padding:5px 8px;text-align:right;">' + item.pct + '%' + (item.rank ? '<span style="font-size:9px;color:var(--accent);margin-left:3px;">(' + item.rank + ')</span>' : '') + '</td>';
       html += '<td style="padding:5px 8px;text-align:right;font-weight:700;color:var(--accent);">' + yen(item.val) + '</td>';
       html += '</tr>';
     });
@@ -4590,7 +4712,9 @@ function saveSettings() {
   var hoseiMap = {'tanto-solo':'tantoSolo','tanto':'tanto','apo':'apo','jiapoji':'jiapoji','tanto-up':'tantoUp','apo-up':'apoUp','jiapoji-up':'jiapojiUp'};
   Object.keys(hoseiMap).forEach(function(id) {
     var el = document.getElementById('hs-' + id);
-    if(el) settingsData.hoseiRule[hoseiMap[id]] = Number(el.value) || 0;
+    if(!el) return;
+    if(String(el.value).trim() === '') delete settingsData.hoseiRule[hoseiMap[id]]; // 空欄 = 既定値
+    else settingsData.hoseiRule[hoseiMap[id]] = Number(el.value);                    // 0 も有効
   });
   // マスタ設定保存
   saveMasterSettings();
@@ -4797,6 +4921,10 @@ function calcKekkaTeate(member, mIdx, targetYearMonth, ankenList) {
   shindenArari = powerData.total;
   var shindenCount = powerData.count;
 
+  // 担当ランク（対象月時点）
+  var tantoRank = getMemberTantoRank(member, ym);
+  var rankPct = tantoRank ? getTantoRanks()[tantoRank] : null;
+
   // 案件を分類して保持
   var shotAnkenList = [];
   var rentalAnkenList = [];
@@ -4832,16 +4960,21 @@ function calcKekkaTeate(member, mIdx, targetYearMonth, ankenList) {
     // ショット系（リース・ローン・現金・その他）
     var keisan = Math.max(0, getKeisanVal(a));
     var pct = 0;
-    if(isTanto && isApo) {
-      pct = isUpsell ? (rule.jiapojiUp || 35) : (rule.jiapoji || 35);
+    var usedRank = '';
+    if(isTanto && rankPct !== null) {
+      // 担当・自アポ自営（アップセル含む）はランクの率
+      pct = rankPct;
+      usedRank = tantoRank;
+    } else if(isTanto && isApo) {
+      pct = isUpsell ? pickRate(rule.jiapojiUp, 35) : pickRate(rule.jiapoji, 35);
     } else if(isTanto) {
-      pct = isUpsell ? (rule.tantoUp || 25) : (hasApo ? (rule.tanto || 25) : (rule.tantoSolo || 25));
+      pct = isUpsell ? pickRate(rule.tantoUp, 25) : (hasApo ? pickRate(rule.tanto, 25) : pickRate(rule.tantoSolo, 25));
     } else if(isApo) {
-      pct = isUpsell ? (rule.apoUp || 5) : (rule.apo || 30);
+      pct = isUpsell ? pickRate(rule.apoUp, 5) : pickRate(rule.apo, 30);
     }
     var shotVal = keisan * (pct / 100);
     shotArari += shotVal;
-    shotAnkenList.push({a:a, val:Math.round(shotVal), keisan:keisan, pct:pct, role: isTanto&&isApo?'自アポ自営':isTanto?'担当':'アポ'});
+    shotAnkenList.push({a:a, val:Math.round(shotVal), keisan:keisan, pct:pct, rank:usedRank, role: isTanto&&isApo?'自アポ自営':isTanto?'担当':'アポ'});
   });
 
   var grossTeate = Math.round(shotArari + rentalArari + shindenArari);
@@ -4961,7 +5094,7 @@ function buildKekkaAnkenList(r, memberName) {
       html += '<td style="padding:4px;">' + (item.a.teianContent||item.a.content||'-') + '</td>';
       html += '<td style="padding:4px;"><span style="font-size:10px;padding:1px 6px;border-radius:8px;background:var(--bg2);">' + item.role + '</span></td>';
       html += '<td style="padding:4px;text-align:right;">' + yen(item.keisan) + '</td>';
-      html += '<td style="padding:4px;text-align:right;">' + item.pct + '%</td>';
+      html += '<td style="padding:4px;text-align:right;">' + item.pct + '%' + (item.rank ? '<span style="font-size:9px;color:var(--accent);margin-left:3px;">(' + item.rank + ')</span>' : '') + '</td>';
       html += '<td style="padding:4px;text-align:right;font-weight:700;color:var(--accent);">' + yen(item.val) + '</td>';
       html += '</tr>';
     });
