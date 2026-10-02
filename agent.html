@@ -729,7 +729,8 @@ function renderAnkenTable() {
   } else {
     document.getElementById('anken-empty').style.display = 'none';
     tbody.innerHTML = filtered.map(function(a) {
-      var feeVal = calcAgentFee(a);
+      var isFixedM = hasFixedMonthlyFee(a) && isMonthlyFeeTarget(a);
+      var feeVal = isFixedM ? calcMonthlyFee(a, getDairiConfig(a.dairiNo || a.dairiNo2)) : calcAgentFee(a);
       var endDate = a.type === 'Stooory' ? a.kojiStart : (a.kojiKanryo || a.kojiEnd);
       var contentVal = a.type === 'Stooory' ? (a.content||'-') : (a.teianContent||'-');
       var folderLink = a.data ? '<a href="'+a.data+'" target="_blank" style="color:var(--accent);" onclick="event.stopPropagation();">📁</a>' : '-';
@@ -741,7 +742,7 @@ function renderAnkenTable() {
         + '<td class="td-date">'+fmtDate(a.juchuDate)+'</td>'
         + '<td class="td-main">'+(a.kokyaku||'-')+'</td>'
         + '<td class="td-sub">'+contentVal+'</td>'
-        + '<td class="td-amount" style="color:var(--accent);">'+fmtYen(feeVal)+'</td>'
+        + '<td class="td-amount" style="color:var(--accent);">'+(isFixedM ? '¥'+Number(feeVal).toLocaleString()+'<span style="font-size:10px;color:var(--purple);"> /月</span>' : fmtYen(feeVal))+'</td>'
         + '<td class="td-date">'+fmtDate(endDate)+'</td>'
         + '<td>'+folderLink+'</td>'
         + '</tr>';
@@ -796,6 +797,8 @@ function renderStats(filtered) {
   var monthFee = ankenList.filter(function(a) {
     return (a.juchuDate||'').startsWith(ym) || (a.tsuki||'').startsWith(ym);
   }).reduce(function(sum, a) {
+    // 定額の月額手数料案件は一括手数料に含めない
+    if (hasFixedMonthlyFee(a) && isMonthlyFeeTarget(a)) return sum;
     return sum + calcAgentFee(a);
   }, 0);
   document.getElementById('st-fee').textContent = Math.round(monthFee / 10000);
@@ -814,6 +817,12 @@ function isLoanOrLease(a) {
 }
 
 // ===== 月額手数料（パターンD） =====
+// 案件ごとの定額（代理店月額手数料）が入っているか。0も有効値
+function hasFixedMonthlyFee(a) {
+  var v = a.dairiMonthlyFee;
+  return v !== '' && v !== undefined && v !== null && !isNaN(parseFloat(v));
+}
+
 function isMonthlyFeeTarget(a) {
   var teian = (a.teianContent || a.content || '').trim();
   var keiyaku = (a.keiyakuType || '').trim();
@@ -822,14 +831,23 @@ function isMonthlyFeeTarget(a) {
   if (st === '精算完了' || st === 'キャンセル') return false;
   var isDenbreRen = teian.indexOf('電ブレ') >= 0 && keiyaku === 'レンタル';
   var isHoshu = teian.indexOf('保守') >= 0 || st === '保守実施中' || st === '保守契約初回';
-  return isDenbreRen || isHoshu;
+  // 口座振替は定額が入っている案件だけ月額（空欄なら従来どおり一括）
+  var isKozaFixed = keiyaku === '口座振替' && hasFixedMonthlyFee(a);
+  return isDenbreRen || isHoshu || isKozaFixed;
 }
 
 function calcMonthlyFee(a, dc) {
   if (!isMonthlyFeeTarget(a)) return 0;
+  // 定額が入っていれば優先
+  if (hasFixedMonthlyFee(a)) return Math.round(parseFloat(a.dairiMonthlyFee));
   var monthly = parseFloat(a.monthly) || 0;
   var rate = (dc && dc.monthlyFeeRate || 0) / 100;
   return Math.round(monthly * rate);
+}
+
+// 明細の「手数料率」列の表示
+function monthlyRateLabel(a, dc) {
+  return hasFixedMonthlyFee(a) ? '定額' : ((dc && dc.monthlyFeeRate) || 0) + '%';
 }
 
 function getMonthlyAnken(ym) {
@@ -964,7 +982,11 @@ function openDetail(id) {
   if(showZaiko) html += detailItem('工事費（卸値）', fmtYen(dKoji));
   if(showShinpan) html += detailItem('計算対象金額', keisanVal > 0 ? fmtYen(keisanVal) : '-');
   if(showZaiko) html += detailItem('材工（税込）', zaikoVal ? fmtYen(zaikoVal) : '-');
-  html += detailItem('手数料（自動計算）', '<span style="color:var(--accent);font-weight:700;">' + fmtYen(feeVal) + '</span>');
+  if (hasFixedMonthlyFee(a) && isMonthlyFeeTarget(a)) {
+    html += detailItem('月額手数料（定額）', '<span style="color:var(--purple);font-weight:700;">¥' + Number(calcMonthlyFee(a, dc)).toLocaleString() + ' / 月</span>');
+  } else {
+    html += detailItem('手数料（自動計算）', '<span style="color:var(--accent);font-weight:700;">' + fmtYen(feeVal) + '</span>');
+  }
   if(showArari) html += detailItem('粗利金額', arariVal > 0 ? fmtYen(arariVal) : '-');
   if(showShinpan) html += detailItem('信販会社', a.shinpanCo || '-');
   html += detailItem('入金日', fmtDate(a.nyukinDate));
@@ -1379,7 +1401,7 @@ function renderMeisai() {
     monthlyAnken.forEach(function(a) {
       var dcMA = getDairiConfig(a.dairiNo || a.dairiNo2);
       var mFee = calcMonthlyFee(a, dcMA);
-      var mRate = dcMA.monthlyFeeRate || 0;
+      var mRate = monthlyRateLabel(a, dcMA);
       totalMonthlyFeeTable += mFee;
       html += '<tr style="cursor:pointer;" onclick="showPage(\'page-anken\');openDetail('+a.id+')">';
       html += '<td>'+(a.juchuNo||'-')+'</td>';
@@ -1390,7 +1412,7 @@ function renderMeisai() {
       html += '<td>'+(a.addr1||'-')+'</td>';
       html += '<td>'+(a.keiyakuType||'-')+'</td>';
       html += '<td class="td-amount">'+fmtYen(a.monthly)+'</td>';
-      html += '<td style="text-align:right;">'+mRate+'%</td>';
+      html += '<td style="text-align:right;">'+mRate+'</td>';
       html += '<td class="td-amount" style="color:var(--purple);font-weight:700;">'+fmtYen(mFee)+'</td>';
       html += '<td>'+fmtDate(a.nyukinDate)+'</td>';
       html += '</tr>';
@@ -1426,7 +1448,8 @@ function renderMonthlyChart(currentYm) {
 
   var data = months.map(function(ym) {
     var fee = ankenList.filter(function(a) {
-      return (a.buai||'').substring(0,7) === ym;
+      // 月額手数料の対象は下で別途加算するので一括からは除外（二重計上防止）
+      return (a.buai||'').substring(0,7) === ym && !isMonthlyFeeTarget(a);
     }).reduce(function(sum, a) { return sum + calcAgentFee(a); }, 0);
     // 月額手数料も加算
     var mAnken = getMonthlyAnken(ym);
@@ -1537,7 +1560,7 @@ function printMeisai() {
     pMonthlyAnken.forEach(function(a) {
       var dcPM = getDairiConfig(a.dairiNo||a.dairiNo2);
       var mf = calcMonthlyFee(a, dcPM);
-      var mr = dcPM.monthlyFeeRate || 0;
+      var mr = monthlyRateLabel(a, dcPM);
       monthlyRows += '<tr>'
         + '<td>'+(a.juchuNo||'-')+'</td>'
         + '<td>'+fmtDate(a.juchuDate)+'</td>'
@@ -1547,7 +1570,7 @@ function printMeisai() {
         + '<td>'+(a.addr1||'-')+'</td>'
         + '<td>'+(a.keiyakuType||'-')+'</td>'
         + '<td style="text-align:right;">'+fmtYen(a.monthly)+'</td>'
-        + '<td style="text-align:right;">'+mr+'%</td>'
+        + '<td style="text-align:right;">'+mr+'</td>'
         + '<td style="text-align:right;font-weight:700;">'+fmtYen(mf)+'</td>'
         + '<td>'+fmtDate(a.nyukinDate)+'</td>'
         + '</tr>';

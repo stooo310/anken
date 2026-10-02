@@ -1764,6 +1764,7 @@ const FORM_SECTIONS = [
       { id:'f-ripu-sonota',label:'その他②', type:'number', key:'ripuSonota', placeholder:'0' },
       { id:'f-ripu-kotsu', label:'交通費②', type:'number-calc', key:'ripuKotsu', placeholder:'0', calcType:'ripuKotsu' },
       { id:'f-ripu-arari', label:'支給金額', type:'number-calc', key:'ripuArari', placeholder:'0', calcType:'ripuArari' },
+      { id:'f-dairi-monthly-fee', label:'代理店月額手数料（定額・円）', type:'number', key:'dairiMonthlyFee', placeholder:'空欄＝率で計算' },
     ]
   },
   {
@@ -2447,6 +2448,7 @@ function renderDetailView(id) {
     ['アップセル', a.ripuUmu||'-'], ['材料③', v(a.ripuZairyo,true)],
     ['工事③', v(a.ripuKoji,true)], ['その他②', v(a.ripuSonota,true)],
     ['交通費②', ripuKotsuDisp], ['支給金額', ripuArariDisp],
+    ['代理店月額手数料（定額）', (a.dairiMonthlyFee !== '' && a.dairiMonthlyFee !== undefined && a.dairiMonthlyFee !== null && !isNaN(parseFloat(a.dairiMonthlyFee))) ? '¥' + Number(a.dairiMonthlyFee).toLocaleString() + ' / 月' : '-（率で計算）'],
   ]);
 
   html += buildDetailAccSection('📝 備考・メモ', false, [
@@ -2738,7 +2740,7 @@ function saveDetailEdit() {
             const v = el.value;
             if(f.type === 'date') {
               a[f.key] = v; // 日付は空クリアも保存
-            } else if(v !== '' || f.key === 'memo' || f.key === 'memo2') {
+            } else if(v !== '' || f.key === 'memo' || f.key === 'memo2' || f.key === 'dairiMonthlyFee') {
               a[f.key] = v;
             } else if(v === '' && !a[f.key]) {
               a[f.key] = v;
@@ -5716,7 +5718,7 @@ function parseJsonPreview(jsonRows) {
     '計算対象金額':'keisan',
     '仲介手数料（税込）':'chukai','仲介手数料(税込)':'chukai','仲介手数料':'chukai',
     '入金額（税込）':'nyukin','入金額(税込)':'nyukin','入金額':'nyukin',
-    '入金日':'nyukinDate','歩合確定日':'buai',
+    '入金日':'nyukinDate','歩合確定日':'buai','代理店月額手数料':'dairiMonthlyFee',
     '新品・中古':'shinchu','保守歴：有無':'hoshuReki','保守月額':'hoshuHi',
     '保守対応会社':'hoshuCo','保守日時':'hoshuDatetime','保守金額':'hoshuKin',
     '保守契約：有無':'hoshuKeiyaku',
@@ -5848,7 +5850,7 @@ function parseCsvPreview(text) {
     '計算対象金額':'keisan',
     '仲介手数料（税込）':'chukai','仲介手数料(税込)':'chukai','仲介手数料':'chukai',
     '入金額（税込）':'nyukin','入金額(税込)':'nyukin','入金額':'nyukin',
-    '入金日':'nyukinDate','歩合確定日':'buai',
+    '入金日':'nyukinDate','歩合確定日':'buai','代理店月額手数料':'dairiMonthlyFee',
     '新品・中古':'shinchu','保守歴：有無':'hoshuReki','保守月額':'hoshuHi',
     '保守対応会社':'hoshuCo','保守日時':'hoshuDatetime','保守金額':'hoshuKin',
     '保守契約：有無':'hoshuKeiyaku',
@@ -6216,7 +6218,7 @@ const EXPORT_COLS = [
   ['hoshuReki','保守歴：有無'],['hoshuHi','保守月額'],['hoshuCo','保守対応会社'],
   ['hoshuDatetime','保守日時'],['hoshuKin','保守金額'],['hoshuKeiyaku','保守契約：有無'],
   ['ripuZairyo','材料③'],['ripuKoji','工事③'],['ripuSonota','その他②'],
-  ['ripuKotsu','交通費②'],['ripuArari','粗利'],
+  ['ripuKotsu','交通費②'],['ripuArari','粗利'],['dairiMonthlyFee','代理店月額手数料'],
   ['memo','備考'],['status','ステータス'],['type','種別'],
 ];
 
