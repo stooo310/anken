@@ -476,7 +476,7 @@ tbody tr:hover td { background: #f7f9ff; }
     <div class="filter-bar">
       <div class="search-wrap">
         <span class="search-icon">🔍</span>
-        <input type="text" id="search-input" placeholder="顧客名・代表者名・電話番号・担当者で検索..." oninput="renderAnkenTable()">
+        <input type="text" id="search-input" placeholder="顧客名・代表者名・電話番号・担当者・備考で検索..." oninput="renderAnkenTable()">
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
         <input type="month" id="anken-month-filter" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:inherit;background:var(--bg);color:var(--text);" onchange="renderAnkenTable()" title="受注月で絞り込み">
@@ -1342,6 +1342,9 @@ async function initApp() {
     if (settingsRes.ok && settingsRes.data) {
       // サーバーの設定をマージ
       Object.keys(settingsRes.data).forEach(function(k) { settingsData[k] = settingsRes.data[k]; });
+      // 受注前ステータスの追加済みフラグはサーバーの値を正とする
+      settingsData._preOrderStatusAdded = !!settingsRes.data._preOrderStatusAdded;
+      ensurePreOrderStatuses();
     }
 
     // ★ サーバーmembersに柳澤・岩﨑などのデフォルトメンバーが無ければ補完
@@ -1434,12 +1437,33 @@ if (authToken && currentUser) {
 
 // ===== ステータス定義 =====
 var STATUS_MAP = {
-  工事: ['受注','審査中','工事手配中','工事手配済み','工事中','工事完了','竣工調査待ち','取直し待ち','本審査依頼中','書類待ち','入金予定','入金','レン・口座初回','レン・口座実施中','対応中','キャンセル','工事後対応','取り外し'],
-  保守: ['受注','保守初回待ち','保守実施中','取直し待ち','キャンセル','対応中','停止'],
-  そーだん: ['LINE登録済み','会員登録済み','相談依頼','相談確認中','相談中','事業者選定中','見積り確認中','見積り承認待ち','契約送付済み','契約完了','事前入金待ち','処置手配中','処置中','処置完了','入金予定','入金','支払い待ち','支払い完了','対応中','キャンセル','お断り','処置後対応','処置後キャンセル','事業者承認待ち','事業者登録済み'],
-  Stooory: ['ご挨拶','商談中','契約送付済み','契約完了','利用準備中','利用中','未入金','キャンセル','停止','対応中']
+  工事: ['提案中','営業確認中','受注','審査中','工事手配中','工事手配済み','工事中','工事完了','竣工調査待ち','取直し待ち','本審査依頼中','書類待ち','入金予定','入金','レン・口座初回','レン・口座実施中','対応中','キャンセル','工事後対応','取り外し'],
+  保守: ['提案中','営業確認中','受注','保守初回待ち','保守実施中','取直し待ち','キャンセル','対応中','停止'],
+  そーだん: ['提案中','営業確認中','LINE登録済み','会員登録済み','相談依頼','相談確認中','相談中','事業者選定中','見積り確認中','見積り承認待ち','契約送付済み','契約完了','事前入金待ち','処置手配中','処置中','処置完了','入金予定','入金','支払い待ち','支払い完了','対応中','キャンセル','お断り','処置後対応','処置後キャンセル','事業者承認待ち','事業者登録済み'],
+  Stooory: ['提案中','営業確認中','ご挨拶','商談中','契約送付済み','契約完了','利用準備中','利用中','未入金','キャンセル','停止','対応中']
 };
+// ===== 受注前ステータス（数字進捗には含めない） =====
+var PRE_ORDER_STATUSES = ['提案中','営業確認中'];
+function isPreOrderStatus(st) { return PRE_ORDER_STATUSES.indexOf(st || '') >= 0; }
+
+// 保存済みのステータスマスタに【提案中】【営業確認中】を一度だけ先頭追加
+// （マスタ設定で消して保存した場合は再追加しない）
+function ensurePreOrderStatuses() {
+  if(!settingsData || settingsData._preOrderStatusAdded) return;
+  if(!settingsData.masterStatus) settingsData.masterStatus = {};
+  ['工事','保守','そーだん','Stooory'].forEach(function(k) {
+    var cur = settingsData.masterStatus[k];
+    var list = (Array.isArray(cur) && cur.length > 0) ? cur.slice() : (STATUS_MAP[k] || []).slice();
+    PRE_ORDER_STATUSES.slice().reverse().forEach(function(st) {
+      if(list.indexOf(st) < 0) list.unshift(st);
+    });
+    settingsData.masterStatus[k] = list;
+  });
+  settingsData._preOrderStatusAdded = true;
+}
+
 function applyMasterStatus() {
+  ensurePreOrderStatuses();
   if(settingsData && settingsData.masterStatus) {
     Object.keys(settingsData.masterStatus).forEach(function(k) {
       if(Array.isArray(settingsData.masterStatus[k]) && settingsData.masterStatus[k].length > 0) {
@@ -1456,10 +1480,10 @@ var settingsData = (() => {
     // マスタ設定のデフォルト値
     if(!raw.masterStatus) {
       raw.masterStatus = {
-        '工事': ['受注','審査中','工事手配中','工事手配済み','工事中','工事完了','竣工調査待ち','取直し待ち','本審査依頼中','書類待ち','入金予定','入金','精算完了','レン・口座初回','レン・口座実施中','対応中','キャンセル','工事後対応','取り外し'],
-        '保守': ['受注','保守初回待ち','保守実施中','取直し待ち','キャンセル','対応中','停止'],
-        'そーだん': ['LINE登録済み','会員登録済み','相談依頼','相談確認中','相談中','事業者選定中','見積り確認中','見積り承認待ち','契約送付済み','契約完了','事前入金待ち','処置手配中','処置中','処置完了','入金予定','入金','支払い待ち','支払い完了','対応中','キャンセル','お断り','処置後対応','処置後キャンセル','事業者承認待ち','事業者登録済み'],
-        'Stooory': ['ご挨拶','商談中','契約送付済み','契約完了','利用準備中','利用中','未入金','キャンセル','停止','対応中']
+        '工事': ['提案中','営業確認中','受注','審査中','工事手配中','工事手配済み','工事中','工事完了','竣工調査待ち','取直し待ち','本審査依頼中','書類待ち','入金予定','入金','精算完了','レン・口座初回','レン・口座実施中','対応中','キャンセル','工事後対応','取り外し'],
+        '保守': ['提案中','営業確認中','受注','保守初回待ち','保守実施中','取直し待ち','キャンセル','対応中','停止'],
+        'そーだん': ['提案中','営業確認中','LINE登録済み','会員登録済み','相談依頼','相談確認中','相談中','事業者選定中','見積り確認中','見積り承認待ち','契約送付済み','契約完了','事前入金待ち','処置手配中','処置中','処置完了','入金予定','入金','支払い待ち','支払い完了','対応中','キャンセル','お断り','処置後対応','処置後キャンセル','事業者承認待ち','事業者登録済み'],
+        'Stooory': ['提案中','営業確認中','ご挨拶','商談中','契約送付済み','契約完了','利用準備中','利用中','未入金','キャンセル','停止','対応中']
       };
     }
     if(!raw.masterTeian) raw.masterTeian = ['電ブレ','電ブレ(レン)','電ブレ(高低)','AC制御','配線工事','工事依頼','新電力(おしごと)','新電力(テラス)','新電力(他)','保守契約','AC','LED','太陽光','蓄電池','EM','節水器具','ウォルB','ステB','リプレイス','その他'];
@@ -1964,6 +1988,8 @@ function statusColor(s) {
   // 要注意ステータス → 濃い赤バッジ
   var alertStatuses = settingsData.masterAlertStatus || ['対応中','工事後対応','処置後対応'];
   if(alertStatuses.includes(s)) return 'b-red-strong';
+  if(s === '提案中') return 'b-blue';
+  if(s === '営業確認中') return 'b-yellow';
   if(['受注','入金','精算完了','支払い完了','契約完了','工事完了','保守実施中','処置完了','利用中','事業者登録済み'].includes(s)) return 'b-green';
   if(['入金予定','本審査依頼中','見積り承認待ち','事前入金待ち','支払い待ち','事業者承認待ち','未入金'].includes(s)) return 'b-yellow';
   if(['工事手配中','工事中','審査中','相談中','事業者選定中','見積り確認中','処置手配中','処置中','商談中','保守初回待ち','利用準備中','レンタル初回','レンタル実施中','レン・口座初回','レン・口座実施中'].includes(s)) return 'b-orange';
@@ -2038,6 +2064,26 @@ function getRowBgStyle(a, alertStatuses) {
   return '';
 }
 
+// 検索ワードが備考・備考②だけで一致した案件に付ける印（どこに一致したかツールチップで表示）
+function memoHitBadge(a, q) {
+  if(!q) return '';
+  var mainHit = [a.kokyaku, a.content, a.rep, a.repKana, a.kokyakuKana, a.tel, a.tanto, a.juchuNo]
+    .some(function(v){ return String(v||'').toLowerCase().includes(q); });
+  if(mainHit) return '';
+  var hits = [];
+  [['備考②（工事）', a.biko2], ['備考', a.memo]].forEach(function(p) {
+    var txt = String(p[1]||'');
+    var idx = txt.toLowerCase().indexOf(q);
+    if(idx < 0) return;
+    var from = Math.max(0, idx - 15);
+    var snip = (from > 0 ? '…' : '') + txt.substr(from, q.length + 30).replace(/\s+/g, ' ') + '…';
+    hits.push(p[0] + '：' + snip);
+  });
+  if(hits.length === 0) return '';
+  var tip = hits.join(' / ').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return '<span title="' + tip + '" style="font-size:10px;margin-left:4px;vertical-align:middle;background:#ede9fe;color:#6d28d9;padding:1px 5px;border-radius:4px;font-weight:600;">📝備考で一致</span>';
+}
+
 function renderAnkenTable() {
   const q = document.getElementById('search-input').value.toLowerCase();
   const showArchived = document.getElementById('show-archived')?.checked || false;
@@ -2048,7 +2094,7 @@ function renderAnkenTable() {
   const filtered = ankenList.filter(a => {
     const matchType = currentTypeFilter === 'all' || a.type === currentTypeFilter;
     const matchStatus = currentStatusFilter === 'all' || a.status === currentStatusFilter;
-    const matchQ = !q || [a.kokyaku, a.content, a.rep, a.repKana, a.kokyakuKana, a.tel, a.tanto, a.juchuNo].some(function(v){return (v||'').toLowerCase().includes(q)});
+    const matchQ = !q || [a.kokyaku, a.content, a.rep, a.repKana, a.kokyakuKana, a.tel, a.tanto, a.juchuNo, a.memo, a.biko2].some(function(v){return String(v||'').toLowerCase().includes(q)});
     // アーカイブフィルター：トグルOFFなら終了ステータスを除外（ただしステータスフィルター指定時は表示）
     const isArchived = archiveStatuses.includes(a.status);
     const matchArchive = showArchived || !isArchived || currentStatusFilter !== 'all';
@@ -2114,11 +2160,12 @@ function renderAnkenTable() {
       const contentVal = a.type === 'Stooory' ? (a.content||'-') : (a.teianContent||'-');
       let cells = '';
       const draftBadge = hasShijiDraft(a.id) ? '<span title="指示書下書きあり" style="font-size:10px;margin-left:4px;vertical-align:middle;background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:4px;font-weight:600;">📋下書</span>' : '';
+      const memoBadge = memoHitBadge(a, q);
       if(isAll) {
         cells = `
           <td>${typePill(a.type)}</td>
           <td class="td-date">${fmtDate(a.juchuDate)}</td>
-          <td class="td-main">${a.kokyaku||'-'}${draftBadge}</td>
+          <td class="td-main">${a.kokyaku||'-'}${draftBadge}${memoBadge}</td>
           <td><span class="badge ${statusColor(a.status)}">${a.status}</span></td>
           <td class="td-sub">${a.keiyakuType||'-'}</td>
           <td class="td-sub">${a.tanto||'-'}</td>
@@ -2128,7 +2175,7 @@ function renderAnkenTable() {
       } else if(a.type==='工事') {
         cells = `
           <td class="td-date">${fmtDate(a.juchuDate)}</td>
-          <td class="td-main">${a.kokyaku||'-'}${draftBadge}</td>
+          <td class="td-main">${a.kokyaku||'-'}${draftBadge}${memoBadge}</td>
           <td><span class="badge ${statusColor(a.status)}">${a.status}</span></td>
           <td class="td-sub">${a.keiyakuType||'-'}</td>
           <td class="td-sub">${a.tanto||'-'}</td>
@@ -2139,7 +2186,7 @@ function renderAnkenTable() {
       } else if(a.type==='保守') {
         cells = `
           <td class="td-date">${fmtDate(a.juchuDate)}</td>
-          <td class="td-main">${a.kokyaku||'-'}${draftBadge}</td>
+          <td class="td-main">${a.kokyaku||'-'}${draftBadge}${memoBadge}</td>
           <td><span class="badge ${statusColor(a.status)}">${a.status}</span></td>
           <td class="td-sub">${a.keiyakuType||'-'}</td>
           <td class="td-sub">${a.tanto||'-'}</td>
@@ -2150,7 +2197,7 @@ function renderAnkenTable() {
       } else if(a.type==='そーだん') {
         cells = `
           <td class="td-date">${fmtDate(a.juchuDate)}</td>
-          <td class="td-main">${a.kokyaku||'-'}${draftBadge}</td>
+          <td class="td-main">${a.kokyaku||'-'}${draftBadge}${memoBadge}</td>
           <td><span class="badge ${statusColor(a.status)}">${a.status}</span></td>
           <td class="td-sub">${a.keiyakuType||'-'}</td>
           <td class="td-sub">${a.tanto||'-'}</td>
@@ -2161,7 +2208,7 @@ function renderAnkenTable() {
       } else if(a.type==='Stooory') {
         cells = `
           <td class="td-date">${fmtDate(a.juchuDate)}</td>
-          <td class="td-main">${a.kokyaku||'-'}${draftBadge}</td>
+          <td class="td-main">${a.kokyaku||'-'}${draftBadge}${memoBadge}</td>
           <td><span class="badge ${statusColor(a.status)}">${a.status}</span></td>
           <td class="td-sub">${a.tanto||'-'}</td>
           <td class="td-sub">${a.dairiNo||'-'}</td>
@@ -5284,6 +5331,7 @@ function buildSujiMonthTable(periodMonths, periodLabel, s) {
     var ms = getMonthSetting(ym);
     var mAnken = ankenList.filter(function(a) {
       if(a.includeInSuji === false) return false;
+      if(isPreOrderStatus(a.status)) return false;
       var d = a.juchuDate || a.date || '';
       var match = String(d).match(/(\d{4})[-\/](\d{1,2})/);
       return match && Number(match[1])===py && Number(match[2])===pm && a.type==='工事';
@@ -5355,6 +5403,7 @@ function buildMemberMonthCards(members, periodMonths, periodLabel, s) {
     var py = pair[0], pm = pair[1];
     var mAnken = ankenList.filter(function(a) {
       if(a.includeInSuji === false) return false;
+      if(isPreOrderStatus(a.status)) return false;
       var d = a.juchuDate || a.date || '';
       var match = String(d).match(/(\d{4})[-\/](\d{1,2})/);
       return match && Number(match[1])===py && Number(match[2])===pm && a.type==='工事';
@@ -5426,6 +5475,7 @@ function renderSuji() {
   // 対象期間の案件フィルタ
   const monthAnken = ankenList.filter(a => {
     if(a.includeInSuji === false) return false; // 数字進捗除外
+    if(isPreOrderStatus(a.status)) return false; // 提案中・営業確認中は受注前なので除外
     if(!a.juchuDate && !a.date) return false;
     const d = a.juchuDate || a.date || '';
     const m = String(d).match(/(\d{4})[-\/](\d{1,2})/);
@@ -6228,7 +6278,7 @@ function openExportModal() {
   const currentList = ankenList.filter(a => {
     const matchType = currentTypeFilter === 'all' || a.type === currentTypeFilter;
     const matchStatus = currentStatusFilter === 'all' || a.status === currentStatusFilter;
-    const matchQ = !q || [a.kokyaku, a.content, a.rep, a.repKana, a.kokyakuKana, a.tel, a.tanto, a.juchuNo].some(function(v){return (v||'').toLowerCase().includes(q)});
+    const matchQ = !q || [a.kokyaku, a.content, a.rep, a.repKana, a.kokyakuKana, a.tel, a.tanto, a.juchuNo, a.memo, a.biko2].some(function(v){return String(v||'').toLowerCase().includes(q)});
     return matchType && matchStatus && matchQ;
   });
   document.getElementById('exp-count-current').textContent = currentList.length + '件';
@@ -6251,7 +6301,7 @@ function executeExport() {
     list = ankenList.filter(a => {
       const matchType = currentTypeFilter === 'all' || a.type === currentTypeFilter;
       const matchStatus = currentStatusFilter === 'all' || a.status === currentStatusFilter;
-      const matchQ = !q || [a.kokyaku, a.content, a.rep, a.repKana, a.kokyakuKana, a.tel, a.tanto, a.juchuNo].some(function(v){return (v||'').toLowerCase().includes(q)});
+      const matchQ = !q || [a.kokyaku, a.content, a.rep, a.repKana, a.kokyakuKana, a.tel, a.tanto, a.juchuNo, a.memo, a.biko2].some(function(v){return String(v||'').toLowerCase().includes(q)});
       return matchType && matchStatus && matchQ;
     });
   }
