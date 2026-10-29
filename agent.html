@@ -268,6 +268,7 @@ tbody tr:hover td { background: #f0f5ff; }
     <div class="nav-section">メニュー</div>
     <div class="nav-item active" onclick="showPage('anken')"><span class="nav-icon">📋</span>案件一覧</div>
     <div class="nav-item" onclick="showPage('meisai')"><span class="nav-icon">💰</span>支払手数料</div>
+    <div class="nav-item" id="nav-dairipay" onclick="showPage('dairipay')" style="display:none;"><span class="nav-icon">🏢</span>代理店支払</div>
   </nav>
   <div class="sidebar-footer">
     <div class="agent-name" id="agent-name-disp"></div>
@@ -349,6 +350,19 @@ tbody tr:hover td { background: #f0f5ff; }
     </div>
     <div id="meisai-dairi-filter"></div>
     <div id="meisai-content"></div>
+  </div>
+
+  <!-- ===== 代理店支払（管理者専用） ===== -->
+  <div id="page-dairipay" style="display:none;">
+    <div class="page-header">
+      <div class="page-title">🏢 代理店<span>支払</span></div>
+      <div class="header-actions">
+        <input type="month" id="dairipay-month" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;background:var(--bg2);color:var(--text);" onchange="renderDairiPay()">
+        <button class="btn btn-ghost btn-sm" onclick="exportDairiPayCsv()">📤 CSV出力</button>
+        <button class="btn btn-ghost btn-sm" onclick="printDairiPay()">🖨 印刷</button>
+      </div>
+    </div>
+    <div id="dairipay-content"></div>
   </div>
 
 </div><!-- /main -->
@@ -568,6 +582,8 @@ async function initAgentApp() {
     if (agentInfo.role === 'dairiAdmin') {
       renderDairiFilter();
       renderMeisaiDairiFilter();
+      var navDp = document.getElementById('nav-dairipay');
+      if (navDp) navDp.style.display = '';
     }
 
     renderStatusChips();
@@ -576,6 +592,8 @@ async function initAgentApp() {
     // 手数料明細のデフォルト月
     var now = new Date();
     document.getElementById('meisai-month').value = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+    var dpm = document.getElementById('dairipay-month');
+    if (dpm) dpm.value = document.getElementById('meisai-month').value;
 
   } catch (e) {
     alert('データ読み込みエラー: ' + e.message);
@@ -588,14 +606,17 @@ async function initAgentApp() {
 // ===== ページ切替 =====
 function showPage(page) {
   closeMobileSidebar();
-  ['anken', 'meisai'].forEach(function(p) {
-    document.getElementById('page-'+p).style.display = p === page ? '' : 'none';
+  var pages = ['anken', 'meisai', 'dairipay'];
+  pages.forEach(function(p) {
+    var el = document.getElementById('page-'+p);
+    if (el) el.style.display = p === page ? '' : 'none';
   });
   document.querySelectorAll('.nav-item').forEach(function(el, i) {
-    el.classList.toggle('active', i === ['anken', 'meisai'].indexOf(page));
+    el.classList.toggle('active', i === pages.indexOf(page));
   });
   closeDetail();
   if (page === 'meisai') renderMeisai();
+  if (page === 'dairipay') renderDairiPay();
 }
 
 // ===== ヘルパー =====
@@ -1619,6 +1640,218 @@ function printMeisai() {
     + '</body></html>';
 
   var win = window.open('','_blank','width=1200,height=800');
+  win.document.write(html);
+  win.document.close();
+  setTimeout(function(){ win.print(); }, 800);
+}
+
+// ============================================================
+// 代理店支払（管理者専用）：月ごとに全代理店の手数料を一覧
+// 計算は支払手数料明細（renderMeisai）と同じ関数を使う
+// ============================================================
+function _dairiPayYm() {
+  var el = document.getElementById('dairipay-month');
+  var ym = el ? el.value : '';
+  if (!ym) {
+    var now = new Date();
+    ym = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+    if (el) el.value = ym;
+  }
+  return ym;
+}
+
+// 案件が属する代理店番号（dairiNo・dairiNo2 の両方。明細ページと同じ扱い）
+function _ankenDairiNos(a) {
+  var out = [];
+  [(a.dairiNo||'').trim(), (a.dairiNo2||'').trim()].forEach(function(n) {
+    if (n && out.indexOf(n) < 0) out.push(n);
+  });
+  return out;
+}
+
+// 対象月の代理店別集計
+function calcDairiPayData(ym) {
+  var dairiList = settingsData.dairiList || [];
+  var nameOf = {};
+  dairiList.forEach(function(d) { nameOf[d.no] = d.name || ''; });
+
+  var rows = {};
+  function row(no) {
+    if (!rows[no]) rows[no] = { no: no, name: nameOf[no] || '（マスタ未登録）', lump: 0, lumpCount: 0, monthly: 0, monthlyCount: 0 };
+    return rows[no];
+  }
+
+  // 一括手数料：歩合確定月 = 対象月、月額対象は除く
+  ankenList.forEach(function(a) {
+    if ((a.buai||'').substring(0,7) !== ym) return;
+    if (isMonthlyFeeTarget(a)) return;
+    var fee = calcAgentFee(a);
+    _ankenDairiNos(a).forEach(function(no) {
+      var r = row(no); r.lump += fee; r.lumpCount++;
+    });
+  });
+
+  // 月額手数料：開始月（歩合確定日 or 入金日）<= 対象月、精算完了・キャンセル除く
+  ankenList.forEach(function(a) {
+    if (!isMonthlyFeeTarget(a)) return;
+    var start = (a.buai || a.nyukinDate || '').substring(0, 7);
+    if (!start || ym < start) return;
+    var fee = calcMonthlyFee(a, getDairiConfig(a.dairiNo || a.dairiNo2));
+    _ankenDairiNos(a).forEach(function(no) {
+      var r = row(no); r.monthly += fee; r.monthlyCount++;
+    });
+  });
+
+  var list = Object.keys(rows).map(function(k) { return rows[k]; });
+  list.forEach(function(r) { r.total = r.lump + r.monthly; });
+  list.sort(function(x, y) { return y.total - x.total || x.no.localeCompare(y.no); });
+  return list;
+}
+
+// 警告：代理店付きなのに歩合確定日がなく、どの月の一覧にも出ない案件
+function findDairiPayWarnings() {
+  var EXCLUDE = ['キャンセル','お断り','取り外し','停止','処置後キャンセル'];
+  return ankenList.filter(function(a) {
+    if (_ankenDairiNos(a).length === 0) return false;
+    if (EXCLUDE.indexOf(a.status||'') >= 0) return false;
+    if (isMonthlyFeeTarget(a)) {
+      // 月額：開始月が決まらない
+      return !(a.buai || a.nyukinDate);
+    }
+    // 一括：入金済み（ステータスか入金日）なのに歩合確定日なし
+    var paid = (a.status === '入金' || a.status === '精算完了' || !!(a.nyukinDate||'').trim());
+    return paid && !(a.buai||'').trim();
+  });
+}
+
+function renderDairiPay() {
+  var wrap = document.getElementById('dairipay-content');
+  if (!wrap) return;
+  if (!agentInfo || agentInfo.role !== 'dairiAdmin') {
+    wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">🔒</div><div class="empty-text">この画面は管理者専用です</div></div>';
+    return;
+  }
+  var ym = _dairiPayYm();
+  var p = ym.split('-');
+  var dispMonth = p[0]+'年'+parseInt(p[1])+'月';
+  var list = calcDairiPayData(ym);
+  var esc = function(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+
+  var grandLump = list.reduce(function(s,r){ return s + r.lump; }, 0);
+  var grandMonthly = list.reduce(function(s,r){ return s + r.monthly; }, 0);
+  var grandTotal = grandLump + grandMonthly;
+  var payCount = list.filter(function(r){ return r.total > 0; }).length;
+
+  var html = '';
+
+  // 警告（管理者のみ）
+  var warns = findDairiPayWarnings();
+  if (warns.length > 0) {
+    html += '<div style="margin:16px 28px 0;padding:12px 16px;background:#fef3c7;border:1px solid #f59e0b;border-radius:10px;font-size:12px;color:#92400e;">'
+      + '<div style="font-weight:700;margin-bottom:6px;">⚠️ 歩合確定日が未入力の案件が' + warns.length + '件あります（どの月の一覧にも含まれていません。ANKEN MGRで歩合確定日を入力すると反映されます）</div>'
+      + '<div style="max-height:140px;overflow-y:auto;">'
+      + warns.map(function(a) {
+          var nos = _ankenDairiNos(a).join('/');
+          var when = a.nyukinDate ? '入金 ' + fmtDate(a.nyukinDate) : (a.status || '-');
+          return '<div style="padding:2px 0;cursor:pointer;" onclick="showPage(\'anken\');openDetail(' + a.id + ')">・' + esc(nos) + ' ' + esc(a.kokyaku||'-') + '（' + esc(a.teianContent||a.content||'-') + '・' + esc(when) + '）</div>';
+        }).join('')
+      + '</div></div>';
+  }
+
+  // サマリー
+  html += '<div class="meisai-card">';
+  html += '<div class="meisai-summary">';
+  html += '<div class="meisai-summary-item"><div class="meisai-summary-label">' + dispMonth + ' 支払合計</div><div class="meisai-summary-value">¥' + grandTotal.toLocaleString() + '</div></div>';
+  html += '<div class="meisai-summary-item"><div class="meisai-summary-label">支払のある代理店</div><div class="meisai-summary-value" style="color:var(--text);">' + payCount + '<span style="font-size:12px;color:var(--text3);margin-left:4px;">社</span></div></div>';
+  html += '<div class="meisai-summary-item"><div class="meisai-summary-label">一括手数料</div><div class="meisai-summary-value" style="color:var(--accent2);">¥' + grandLump.toLocaleString() + '</div></div>';
+  html += '<div class="meisai-summary-item"><div class="meisai-summary-label">🔄 月額手数料</div><div class="meisai-summary-value" style="color:var(--purple);">¥' + grandMonthly.toLocaleString() + '</div></div>';
+  html += '<div class="meisai-summary-item"><div class="meisai-summary-label">支払予定</div><div class="meisai-summary-value" style="color:var(--purple);font-size:14px;">翌月末</div></div>';
+  html += '</div>';
+
+  // 一覧
+  html += '<div style="overflow-x:auto;"><table class="meisai-table" style="font-size:12px;">';
+  html += '<thead><tr><th>代理店番号</th><th>代理店名</th><th style="text-align:right;">一括手数料</th><th style="text-align:right;">月額手数料</th><th style="text-align:right;">支払合計</th><th>件数</th><th></th></tr></thead><tbody>';
+  if (list.length === 0) {
+    html += '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text3);">該当月の手数料データはありません</td></tr>';
+  } else {
+    list.forEach(function(r) {
+      var cnt = (r.lumpCount ? r.lumpCount + '件' : '') + (r.monthlyCount ? (r.lumpCount ? ' ＋' : '') + '月額' + r.monthlyCount + '件' : '');
+      html += '<tr style="cursor:pointer;' + (r.total === 0 ? 'opacity:.55;' : '') + '" onclick="openDairiMeisai(\'' + esc(r.no) + '\')">';
+      html += '<td style="font-size:12px;">' + esc(r.no) + '</td>';
+      html += '<td style="font-size:12px;font-weight:600;">' + esc(r.name) + '</td>';
+      html += '<td class="td-amount" style="text-align:right;">' + (r.lump ? '¥' + r.lump.toLocaleString() : '-') + '</td>';
+      html += '<td class="td-amount" style="text-align:right;color:var(--purple);">' + (r.monthly ? '¥' + r.monthly.toLocaleString() : '-') + '</td>';
+      html += '<td class="td-amount" style="text-align:right;color:var(--accent);font-weight:700;">¥' + r.total.toLocaleString() + '</td>';
+      html += '<td style="font-size:11px;color:var(--text2);">' + esc(cnt || '-') + '</td>';
+      html += '<td style="font-size:11px;color:var(--accent);">明細 ›</td>';
+      html += '</tr>';
+    });
+    html += '<tr class="total-row"><td colspan="2" style="text-align:right;padding-right:20px;">合計</td>';
+    html += '<td style="text-align:right;">¥' + grandLump.toLocaleString() + '</td>';
+    html += '<td style="text-align:right;">¥' + grandMonthly.toLocaleString() + '</td>';
+    html += '<td style="text-align:right;">¥' + grandTotal.toLocaleString() + '</td><td></td><td></td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  wrap.innerHTML = html;
+}
+
+// 行クリック → その代理店の支払手数料明細へ
+function openDairiMeisai(no) {
+  var ym = _dairiPayYm();
+  _meisaiDairiFilter = no;
+  var sel = document.getElementById('meisai-dairi-sel');
+  if (sel) sel.value = no;
+  var mm = document.getElementById('meisai-month');
+  if (mm) mm.value = ym;
+  showPage('meisai');
+}
+
+function exportDairiPayCsv() {
+  var ym = _dairiPayYm();
+  var list = calcDairiPayData(ym);
+  var csv = '\uFEFF対象月,代理店番号,代理店名,一括手数料,一括件数,月額手数料,月額件数,支払合計\n';
+  list.forEach(function(r) {
+    csv += [ym, r.no, r.name, r.lump, r.lumpCount, r.monthly, r.monthlyCount, r.total]
+      .map(function(v){ return '"' + String(v).replace(/"/g,'""') + '"'; }).join(',') + '\n';
+  });
+  var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  var url = URL.createObjectURL(blob);
+  var link = document.createElement('a');
+  link.href = url;
+  link.download = '代理店支払_' + ym + '.csv';
+  link.click();
+  URL.revokeObjectURL(url);
+  showToast('📤 CSVを出力しました');
+}
+
+function printDairiPay() {
+  var ym = _dairiPayYm();
+  var p = ym.split('-');
+  var dispMonth = p[0]+'年'+parseInt(p[1])+'月';
+  var list = calcDairiPayData(ym);
+  var esc = function(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+  var gl = 0, gm = 0;
+  var rows = list.map(function(r) {
+    gl += r.lump; gm += r.monthly;
+    return '<tr><td>' + esc(r.no) + '</td><td>' + esc(r.name) + '</td>'
+      + '<td style="text-align:right;">¥' + r.lump.toLocaleString() + '</td>'
+      + '<td style="text-align:right;">¥' + r.monthly.toLocaleString() + '</td>'
+      + '<td style="text-align:right;font-weight:700;">¥' + r.total.toLocaleString() + '</td>'
+      + '<td>' + r.lumpCount + '件 / 月額' + r.monthlyCount + '件</td></tr>';
+  }).join('');
+  rows += '<tr style="font-weight:700;background:#f0f5ff;"><td colspan="2" style="text-align:right;">合計</td>'
+    + '<td style="text-align:right;">¥' + gl.toLocaleString() + '</td><td style="text-align:right;">¥' + gm.toLocaleString() + '</td>'
+    + '<td style="text-align:right;">¥' + (gl+gm).toLocaleString() + '</td><td></td></tr>';
+  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>代理店支払一覧</title>'
+    + '<style>@page{margin:12mm;}body{font-family:"Hiragino Kaku Gothic Pro","Meiryo",sans-serif;font-size:11px;color:#222;}'
+    + 'h1{font-size:16px;margin:0 0 4px;}table{width:100%;border-collapse:collapse;margin-top:10px;}'
+    + 'th{background:#e8edf5;padding:6px;border:1px solid #ccc;text-align:left;font-size:10px;}td{padding:5px 6px;border:1px solid #ddd;}</style></head><body>'
+    + '<h1>○代理店支払一覧</h1><div>対象月: ' + dispMonth + '　支払予定: 翌月末　支払合計: <b>¥' + (gl+gm).toLocaleString() + '</b></div>'
+    + '<table><thead><tr><th>代理店番号</th><th>代理店名</th><th>一括手数料</th><th>月額手数料</th><th>支払合計</th><th>件数</th></tr></thead><tbody>' + rows + '</tbody></table>'
+    + '</body></html>';
+  var win = window.open('', '_blank', 'width=1000,height=800');
+  if (!win) { alert('ポップアップがブロックされました。'); return; }
   win.document.write(html);
   win.document.close();
   setTimeout(function(){ win.print(); }, 800);

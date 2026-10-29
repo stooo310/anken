@@ -4461,7 +4461,8 @@ function buildKekkaAnkenDetail(shotList, rentalList, shindenTotal, yen) {
   // ショット系
   if (shotList.length > 0) {
     var shotTotal = shotList.reduce(function(s,i){return s+i.val;}, 0);
-    html += '<div style="margin-top:12px;"><div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:6px;">🔨 ショット系（' + shotList.length + '件 / ' + yen(shotTotal) + '）</div>';
+    var shotKeisanTotal = shotList.reduce(function(s,i){return s+(i.keisan||0);}, 0);
+    html += '<div style="margin-top:12px;"><div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:6px;">🔨 ショット系（' + shotList.length + '件 / 計算対象 ' + yen(shotKeisanTotal) + ' / 歩合 ' + yen(shotTotal) + '）</div>';
     html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;">';
     html += '<thead><tr style="border-bottom:1px solid var(--border);background:var(--bg2);">';
     html += '<th style="padding:6px 8px;text-align:left;font-size:10px;color:var(--text3);">月</th>';
@@ -4485,13 +4486,20 @@ function buildKekkaAnkenDetail(shotList, rentalList, shindenTotal, yen) {
       html += '<td style="padding:5px 8px;text-align:right;font-weight:700;color:var(--accent);">' + yen(item.val) + '</td>';
       html += '</tr>';
     });
+    html += '<tr style="border-top:2px solid var(--border);background:var(--bg2);font-weight:700;">';
+    html += '<td colspan="5" style="padding:6px 8px;text-align:right;">合計（' + shotList.length + '件）</td>';
+    html += '<td style="padding:6px 8px;text-align:right;">' + yen(shotKeisanTotal) + '</td>';
+    html += '<td></td>';
+    html += '<td style="padding:6px 8px;text-align:right;color:var(--accent);">' + yen(shotTotal) + '</td>';
+    html += '</tr>';
     html += '</tbody></table></div></div>';
   }
 
   // レンタル系
   if (rentalList.length > 0) {
     var rentalTotal = rentalList.reduce(function(s,i){return s+i.val;}, 0);
-    html += '<div style="margin-top:14px;"><div style="font-size:12px;font-weight:700;color:#7c3aed;margin-bottom:6px;">🔄 レンタル系（' + rentalList.length + '件 / ' + yen(rentalTotal) + '）</div>';
+    var rentalMonthlyTotal = rentalList.reduce(function(s,i){return s+(i.monthly||0);}, 0);
+    html += '<div style="margin-top:14px;"><div style="font-size:12px;font-weight:700;color:#7c3aed;margin-bottom:6px;">🔄 レンタル系（' + rentalList.length + '件 / 月額 ' + yen(rentalMonthlyTotal) + ' / 歩合 ' + yen(rentalTotal) + '）</div>';
     html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;">';
     html += '<thead><tr style="border-bottom:1px solid var(--border);background:var(--bg2);">';
     html += '<th style="padding:6px 8px;text-align:left;font-size:10px;color:var(--text3);">月</th>';
@@ -4509,6 +4517,11 @@ function buildKekkaAnkenDetail(shotList, rentalList, shindenTotal, yen) {
       html += '<td style="padding:5px 8px;text-align:right;font-weight:700;color:#7c3aed;">' + yen(item.val) + '</td>';
       html += '</tr>';
     });
+    html += '<tr style="border-top:2px solid var(--border);background:var(--bg2);font-weight:700;">';
+    html += '<td colspan="3" style="padding:6px 8px;text-align:right;">合計（' + rentalList.length + '件）</td>';
+    html += '<td style="padding:6px 8px;text-align:right;">' + yen(rentalMonthlyTotal) + '</td>';
+    html += '<td style="padding:6px 8px;text-align:right;color:#7c3aed;">' + yen(rentalTotal) + '</td>';
+    html += '</tr>';
     html += '</tbody></table></div></div>';
   }
 
