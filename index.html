@@ -769,6 +769,14 @@ tbody tr:hover td { background: #f7f9ff; }
     <!-- マスタ設定タブ -->
     <div id="stab-content-master" style="display:none;padding:24px 28px;max-width:900px;">
 
+      <!-- 受注番号の重複チェック -->
+      <div class="dash-card" style="margin-bottom:20px;">
+        <div class="dash-card-title">🔁 受注番号の重複チェック</div>
+        <div style="margin-top:4px;font-size:12px;color:var(--text3);margin-bottom:12px;">同じ受注番号の案件を探します。後から作った案件だけ、新しい番号に振り直せます（元の案件の番号は変わりません）。</div>
+        <button class="btn btn-ghost btn-sm" onclick="renderJuchuDupList()">🔍 重複をチェック</button>
+        <div id="st-juchu-dup-wrap" style="margin-top:12px;"></div>
+      </div>
+
       <!-- チーム設定 -->
       <div class="dash-card" style="margin-bottom:20px;">
         <div class="dash-card-title">👥 チーム設定</div>
@@ -2816,6 +2824,7 @@ function saveDetailEdit() {
   }
   // saveAnkenSingle（1件のみ保存）に統一
   saveAnkenSingle(a);
+  warnDupJuchuNo(a);
   renderAnkenTable();
   if(document.getElementById('page-koji').style.display !== 'none') renderKoji();
   detailEditMode = false;
@@ -3492,10 +3501,11 @@ function saveAnken() {
   // 新規/編集した案件をAPI個別保存
   if(editingAnkenId) {
     var saved = ankenList.find(x=>x.id===editingAnkenId);
-    if(saved) saveAnkenSingle(saved);
+    if(saved) { saveAnkenSingle(saved); warnDupJuchuNo(saved); }
   } else if(ankenList.length > 0) {
     var newA = ankenList[0];
     saveAnkenSingle(newA);
+    warnDupJuchuNo(newA);
     // 新規案件の場合、Googleドライブに3フォルダ自動作成
     if (!editingAnkenId && newA.kokyaku && authToken) {
       var folderName = (newA.kokyaku || '案件') + '_' + (newA.juchuDate || '').replace(/-/g,'');
@@ -3514,11 +3524,106 @@ function saveAnken() {
   if(added) showToast(`✅ 顧客「${added.name}」を自動登録しました（${added.custNo}）`);
 }
 
+// コピー時に引き継ぐ項目（お客さん・場所の情報だけ）。それ以外は空になる
+var COPY_KEEP_KEYS = [
+  'type',
+  // 顧客
+  'kokyaku','kokyakuKana','rep','repKana','tel','gyoshu','birthday','zip','addr1','addr2',
+  // 電気設備（場所に紐づく情報）
+  'denryoku','yoyoCapacity','keikiNo','chitenDoryoku','chitenDento','dainiChiten','dainiKeiki',
+  // 設置先
+  'setchiShop','kojiAddr','setchiContact',
+  // Stooory の店舗情報
+  'shopName','shopZip','shopAddr1','shopAddr2','shopTel'
+];
+
+// 次の受注番号（種別-YYMM-連番）。既存の最大連番+1なので重複しない
+function nextJuchuNo(type) {
+  const now = new Date();
+  const ym = String(now.getFullYear()).slice(2) + String(now.getMonth()+1).padStart(2,'0');
+  const prefix = (type || '案件') + '-' + ym + '-';
+  const maxSeq = ankenList.reduce((m, x) => {
+    if((x.juchuNo||'').startsWith(prefix)) {
+      const n = parseInt((x.juchuNo||'').replace(prefix,'')) || 0;
+      return n > m ? n : m;
+    }
+    return m;
+  }, 0);
+  return prefix + String(maxSeq + 1).padStart(3, '0');
+}
+
+// 保存時：同じ受注番号の案件がほかにあれば警告
+function warnDupJuchuNo(item) {
+  if(!item || !item.juchuNo) return;
+  var dups = ankenList.filter(function(x) { return x.id !== item.id && x.juchuNo === item.juchuNo; });
+  if(dups.length === 0) return;
+  setTimeout(function() {
+    showToast('⚠️ 受注番号「' + item.juchuNo + '」が他の案件（' + dups.map(function(d){ return d.kokyaku || '-'; }).join('・') + '）と重複しています。設定→マスタ設定の「受注番号の重複チェック」で振り直せます');
+  }, 1200);
+}
+
+// ===== 受注番号の重複チェック（設定→マスタ設定） =====
+function renderJuchuDupList() {
+  var wrap = document.getElementById('st-juchu-dup-wrap');
+  if(!wrap) return;
+  var groups = {};
+  ankenList.forEach(function(a) {
+    var no = (a.juchuNo || '').trim();
+    if(!no) return;
+    (groups[no] = groups[no] || []).push(a);
+  });
+  var dupKeys = Object.keys(groups).filter(function(k) { return groups[k].length > 1; }).sort();
+  if(dupKeys.length === 0) {
+    wrap.innerHTML = '<div style="font-size:13px;color:#16a34a;font-weight:600;padding:8px 0;">✅ 重複している受注番号はありません</div>';
+    return;
+  }
+  var esc = function(v){ return String(v||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+  var html = '<div style="font-size:12px;color:#b91c1c;font-weight:600;margin-bottom:8px;">⚠️ ' + dupKeys.length + '件の受注番号が重複しています（一番古い案件は番号を残し、後から作った案件だけ振り直せます）</div>';
+  dupKeys.forEach(function(no) {
+    var list = groups[no].slice().sort(function(x, y) { return Number(x.id) - Number(y.id); }); // id=作成時刻
+    html += '<div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px;">'
+      + '<div style="font-size:13px;font-weight:700;margin-bottom:6px;">' + esc(no) + '</div>';
+    list.forEach(function(a, i) {
+      html += '<div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:4px 0;border-top:' + (i ? '1px solid var(--bg2)' : 'none') + ';">'
+        + '<span style="min-width:44px;">' + typePill(a.type) + '</span>'
+        + '<span style="flex:1;cursor:pointer;color:var(--accent);" onclick="openDetail(' + a.id + ')">' + esc(a.kokyaku || '-') + '</span>'
+        + '<span class="badge ' + statusColor(a.status) + '">' + esc(a.status || '-') + '</span>'
+        + (i === 0
+            ? '<span style="font-size:11px;color:var(--text3);min-width:110px;text-align:right;">元の案件（そのまま）</span>'
+            : '<button class="btn btn-ghost btn-sm" style="min-width:110px;" onclick="renumberJuchuNo(' + a.id + ')">🔢 番号を振り直す</button>')
+        + '</div>';
+    });
+    html += '</div>';
+  });
+  wrap.innerHTML = html;
+}
+
+function renumberJuchuNo(id) {
+  var a = ankenList.find(function(x) { return x.id === id; });
+  if(!a) return;
+  var newNo = nextJuchuNo(a.type);
+  if(!confirm('「' + (a.kokyaku || '-') + '」の受注番号を\n' + (a.juchuNo || '-') + ' → ' + newNo + '\nに振り直します。よろしいですか？')) return;
+  a.juchuNo = newNo;
+  saveAnkenSingle(a);
+  renderAnkenTable();
+  renderJuchuDupList();
+  showToast('✅ 受注番号を ' + newNo + ' に振り直しました');
+}
+
 function copyAnken(id) {
   const a = ankenList.find(x=>x.id===id);
   if(!a) return;
   const copyId = Date.now();
-  const copy = { ...a, id: copyId, kokyaku: a.kokyaku+'【コピー】', status: STATUS_MAP[a.type][0], juchuDate: '', data:'', contractUrl:'', status3:'' };
+  const copy = { id: copyId };
+  COPY_KEEP_KEYS.forEach(function(k) { if(a[k] !== undefined) copy[k] = a[k]; });
+  copy.kokyaku = (a.kokyaku || '') + '【コピー】';
+  copy.status = (STATUS_MAP[a.type] || [''])[0];
+  copy.juchuNo = ''; // 保存時に種別・月で自動採番
+  // コピー元の案件をメモとして残す（工事系は備考②、Stooory はメモ）
+  var now = new Date();
+  var today = now.getFullYear() + '/' + String(now.getMonth()+1).padStart(2,'0') + '/' + String(now.getDate()).padStart(2,'0');
+  var srcNote = '【コピー元】' + (a.juchuNo || '番号なし') + ' ' + (a.kokyaku || '') + '（' + (a.type || '') + '・' + (a.status || '-') + '）' + today + ' コピー';
+  if(a.type === 'Stooory') copy.memo = srcNote; else copy.biko2 = srcNote;
   ankenList.unshift(copy);
   renderAnkenTable();
   openEditAnken(copy.id);
