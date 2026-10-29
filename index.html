@@ -5118,6 +5118,7 @@ function calcKekkaTeate(member, mIdx, targetYearMonth, ankenList) {
         var mult = (member.hosei||{}).rentalMult || 0;
         rentalVal = monthly * mult;
       }
+      rentalVal = Math.floor(rentalVal); // 1件ごとに円未満を切り捨て（明細と合計を一致させる）
       rentalArari += rentalVal;
       var role = isTanto && isApo ? '自アポ自営' : isTanto ? '担当' : 'アポ';
       rentalAnkenList.push({a:a, val:Math.round(rentalVal), monthly:monthly, role: role});
@@ -5139,7 +5140,7 @@ function calcKekkaTeate(member, mIdx, targetYearMonth, ankenList) {
     } else if(isApo) {
       pct = isUpsell ? pickRate(rule.apoUp, 5) : pickRate(rule.apo, 30);
     }
-    var shotVal = keisan * (pct / 100);
+    var shotVal = Math.floor(keisan * (pct / 100)); // 1件ごとに円未満を切り捨て（明細と合計を一致させる）
     shotArari += shotVal;
     shotAnkenList.push({a:a, val:Math.round(shotVal), keisan:keisan, pct:pct, rank:usedRank, role: isTanto&&isApo?'自アポ自営':isTanto?'担当':'アポ'});
   });
