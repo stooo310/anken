@@ -1871,11 +1871,27 @@ function saveKokyakuData() {
     // ここでは全件保存は重いのでスキップ、個別saveで対応
   }
 }
+// 保存失敗を画面で知らせる（これまでは開発者コンソールにしか出ていなかった）
+var _saveFailAlerted = false;
+function notifySaveFailure(ankenObj, msg) {
+  var name = (ankenObj && ankenObj.kokyaku) || '案件';
+  var isAuth = /認証/.test(msg || '');
+  var text = isAuth
+    ? '⚠️ ログインの有効期限が切れていたため「' + name + '」を保存できませんでした。\n\n入力した内容をメモしてから、ログインし直して入力し直してください。'
+    : '⚠️ 「' + name + '」を保存できませんでした。\n（' + (msg || '通信エラー') + '）\n\nリロードせずに、少し待ってからもう一度保存してください。';
+  console.error('案件保存エラー:', msg);
+  // 連続した失敗でアラートが何度も出ないよう、1回出したら数秒は抑止
+  if (_saveFailAlerted) { showToast('❌ 保存できませんでした：' + name); return; }
+  _saveFailAlerted = true;
+  setTimeout(function(){ _saveFailAlerted = false; }, 5000);
+  alert(text);
+}
+
 function saveAnkenSingle(ankenObj) {
   if (authToken) {
     apiCall('saveAnken', { data: ankenObj }).then(function(r) {
-      if (!r.ok) console.error('案件個別保存エラー:', r.error);
-    }).catch(function(e) { console.error('通信エラー:', e); });
+      if (!r || !r.ok) notifySaveFailure(ankenObj, r && r.error);
+    }).catch(function(e) { notifySaveFailure(ankenObj, e && e.message); });
   }
 }
 function saveKokyakuSingle(kokyakuObj) {
